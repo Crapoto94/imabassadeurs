@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Lock, Plus } from 'lucide-react';
-import { Card, PageTitle, Spinner, Alert, Badge, Button, Input } from '../components/ui';
-import { addVoteOption, castVote, closeVote, getVote } from '../api/endpoints';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, CheckCircle2, Lock, Plus, Pencil, Trash2, Save, X } from 'lucide-react';
+import { Card, PageTitle, Spinner, Alert, Badge, Button, Input, Textarea, Field } from '../components/ui';
+import { addVoteOption, castVote, closeVote, deleteVote, deleteVoteOption, getVote, updateVote } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import type { VoteSession } from '../types';
@@ -10,12 +10,18 @@ import type { VoteSession } from '../types';
 export default function VoteDetail() {
   const { id } = useParams();
   const sid = Number(id);
+  const navigate = useNavigate();
   const { canInteract, isIanimateur } = useAuth();
   const [s, setS] = useState<VoteSession | null>(null);
   const [error, setError] = useState('');
   const [newOption, setNewOption] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [question, setQuestion] = useState('');
 
-  async function load() { try { setS(await getVote(sid)); } catch (e) { setError(errMsg(e)); } }
+  async function load() {
+    try { const data = await getVote(sid); setS(data); setQuestion(data.question); }
+    catch (e) { setError(errMsg(e)); }
+  }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [sid]);
 
   if (error) return <Alert kind="error">{error}</Alert>;
@@ -24,11 +30,37 @@ export default function VoteDetail() {
   const total = s.options.reduce((a, o) => a + o.votes, 0);
   const canAddOption = s.status === 'open' && canInteract && (s.mode === 'open' || s.allow_write_in);
 
+  async function saveQuestion() {
+    try { await updateVote(sid, { question, closes_at: s?.closes_at ?? null }); setEditing(false); load(); }
+    catch (e) { setError(errMsg(e)); }
+  }
+  async function removeSession() {
+    if (!window.confirm('Supprimer définitivement cette session de vote ?')) return;
+    try { await deleteVote(sid); navigate('/votes'); }
+    catch (e) { setError(errMsg(e)); }
+  }
+
   return (
     <div>
       <Link to="/votes" className="mb-4 inline-flex items-center gap-1 text-sm text-ville-600 hover:underline"><ArrowLeft size={16} /> Retour</Link>
       <PageTitle title={s.question} subtitle={`Session ${s.mode === 'open' ? 'libre' : 'fermée'} · créée par ${s.created_by_name}`}
-        action={<Badge color={s.status === 'open' ? 'green' : 'slate'}>{s.status === 'open' ? 'Ouvert' : 'Clos'}</Badge>} />
+        action={
+          <div className="flex items-center gap-2">
+            <Badge color={s.status === 'open' ? 'green' : 'slate'}>{s.status === 'open' ? 'Ouvert' : 'Clos'}</Badge>
+            {isIanimateur && !editing && <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} /> Éditer</Button>}
+            {isIanimateur && <Button variant="danger" onClick={removeSession}><Trash2 size={16} /> Supprimer</Button>}
+          </div>
+        } />
+
+      {editing && (
+        <Card className="mb-6 space-y-3 p-5">
+          <Field label="Question"><Textarea rows={2} value={question} onChange={(e) => setQuestion(e.target.value)} /></Field>
+          <div className="flex gap-2">
+            <Button onClick={saveQuestion}><Save size={16} /> Enregistrer</Button>
+            <Button variant="secondary" onClick={() => { setEditing(false); setQuestion(s.question); }}><X size={16} /> Annuler</Button>
+          </div>
+        </Card>
+      )}
 
       <Card className="mb-6 space-y-3 p-5">
         {s.options.length === 0 && <p className="text-sm text-slate-500">Aucune option proposée pour l’instant.</p>}
@@ -46,6 +78,11 @@ export default function VoteDetail() {
                   ) : <span className="text-sm">{mine ? <Badge color="green">Votre vote</Badge> : null}</span>}
                   <span className="font-medium text-slate-800">{o.label}</span>
                   {o.proposed_by_name && <span className="text-xs text-slate-400">proposé par {o.proposed_by_name}</span>}
+                  {isIanimateur && (
+                    <button title="Supprimer cette option" onClick={async () => { if (window.confirm('Supprimer cette option ?')) { await deleteVoteOption(o.id); load(); } }} className="text-slate-400 hover:text-red-600">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
                 <span className="text-sm font-semibold text-slate-700">{o.votes} ({pct}%)</span>
               </div>

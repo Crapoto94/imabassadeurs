@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Network, Sparkles, Plus, Check, Undo2, Lightbulb, Clock, Flame } from 'lucide-react';
+import { Network, Sparkles, Plus, Check, Undo2, Lightbulb, Clock, Flame, Pencil, Trash2, Save, X } from 'lucide-react';
 import { Card, PageTitle, Button, Select, Input, Badge, Spinner, Alert, Field, Textarea } from '../components/ui';
 import ForceGraph, { GraphNode } from '../components/ForceGraph';
-import { createLink, createPrinciple, generateClusters, getConsensus, getGraph, getPrinciples, getStats, setPrincipleStatus } from '../api/endpoints';
+import { createLink, createPrinciple, deletePrinciple, generateClusters, getConsensus, getGraph, getPrinciples, getStats, setPrincipleStatus, updatePrinciple } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import type { GraphData, Principle } from '../types';
@@ -217,23 +217,45 @@ function Section({ title, items }: { title: string; items: any[] }) {
 function PrinciplesPanel({ principles, onChanged, canInteract, isIanimateur }: { principles: Principle[]; onChanged: () => void; canInteract: boolean; isIanimateur: boolean }) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editBody, setEditBody] = useState('');
   return (
     <Card className="p-5">
       <h3 className="mb-3 flex items-center gap-2 font-semibold"><Network size={16} /> Principes de Charte</h3>
       <ul className="mb-3 space-y-2">
         {principles.map((p) => (
           <li key={p.id} className="rounded border border-slate-200 p-2 text-sm">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium">{p.title}</span>
-              <Badge color={p.status === 'adopted' ? 'green' : 'slate'}>{p.status === 'adopted' ? 'Adopté' : 'Brouillon'}</Badge>
-            </div>
-            <p className="text-slate-600">{p.body}</p>
-            <div className="mt-1 flex items-center gap-3 text-xs text-slate-500">
-              <span>{p.links_count} lien(s)</span>
-              {isIanimateur && (p.status === 'draft'
-                ? <button className="inline-flex items-center gap-1 text-emerald-700" onClick={async () => { await setPrincipleStatus(p.id, 'adopted'); onChanged(); }}><Check size={13} /> Adopter</button>
-                : <button className="inline-flex items-center gap-1 text-slate-600" onClick={async () => { await setPrincipleStatus(p.id, 'draft'); onChanged(); }}><Undo2 size={13} /> Repasser en brouillon</button>)}
-            </div>
+            {editId === p.id ? (
+              <div className="space-y-2">
+                <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                <Textarea rows={3} value={editBody} onChange={(e) => setEditBody(e.target.value)} />
+                <div className="flex gap-2">
+                  <Button onClick={async () => { await updatePrinciple(p.id, { title: editTitle, body: editBody }); setEditId(null); onChanged(); }}><Save size={14} /> Enregistrer</Button>
+                  <Button variant="secondary" onClick={() => setEditId(null)}><X size={14} /> Annuler</Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{p.title}</span>
+                  <Badge color={p.status === 'adopted' ? 'green' : 'slate'}>{p.status === 'adopted' ? 'Adopté' : 'Brouillon'}</Badge>
+                </div>
+                <p className="text-slate-600">{p.body}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                  <span>{p.links_count} lien(s)</span>
+                  {isIanimateur && (p.status === 'draft'
+                    ? <button className="inline-flex items-center gap-1 text-emerald-700" onClick={async () => { await setPrincipleStatus(p.id, 'adopted'); onChanged(); }}><Check size={13} /> Adopter</button>
+                    : <button className="inline-flex items-center gap-1 text-slate-600" onClick={async () => { await setPrincipleStatus(p.id, 'draft'); onChanged(); }}><Undo2 size={13} /> Repasser en brouillon</button>)}
+                  {isIanimateur && (
+                    <>
+                      <button className="inline-flex items-center gap-1 text-slate-500 hover:text-ville-600" onClick={() => { setEditId(p.id); setEditTitle(p.title); setEditBody(p.body); }}><Pencil size={13} /> Éditer</button>
+                      <button className="inline-flex items-center gap-1 text-slate-500 hover:text-red-600" onClick={async () => { if (window.confirm('Supprimer ce principe ?')) { await deletePrinciple(p.id); onChanged(); } }}><Trash2 size={13} /> Supprimer</button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </li>
         ))}
         {principles.length === 0 && <li className="text-slate-400">Aucun principe.</li>}

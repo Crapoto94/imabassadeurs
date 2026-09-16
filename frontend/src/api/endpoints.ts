@@ -100,4 +100,24 @@ export const testPrompt = (actionKey: string, variables: Record<string, unknown>
   api.post<AiResult>(`/api/v1/admin/prompts/${actionKey}/test`, { variables }).then((r) => r.data);
 export const getAiModels = () => api.get<any>('/api/v1/admin/ai-models').then((r) => r.data);
 
+// ── Modération (admin & modérateurs) ──
+export const updateResource = (id: number, data: { title: string; description: string; url?: string | null }) =>
+  api.put<Resource>(`/api/v1/resources/${id}`, data).then((r) => r.data);
+export const deleteResource = (id: number) => api.delete(`/api/v1/resources/${id}`).then((r) => r.data);
+export const updateComment = (id: number, body: string) => api.put(`/api/v1/comments/${id}`, { body }).then((r) => r.data);
+export const deleteComment = (id: number) => api.delete(`/api/v1/comments/${id}`).then((r) => r.data);
+export const updateExperiment = (id: number, data: Record<string, unknown>) =>
+  api.put<Experiment>(`/api/v1/experiments/${id}`, data).then((r) => r.data);
+export const deleteExperiment = (id: number) => api.delete(`/api/v1/experiments/${id}`).then((r) => r.data);
+export const updateRisk = (id: number, data: Record<string, unknown>) =>
+  api.put<Risk>(`/api/v1/risks/${id}`, data).then((r) => r.data);
+export const deleteRisk = (id: number) => api.delete(`/api/v1/risks/${id}`).then((r) => r.data);
+export const updateVote = (id: number, data: Record<string, unknown>) =>
+  api.put<VoteSession>(`/api/v1/votes/${id}`, data).then((r) => r.data);
+export const deleteVote = (id: number) => api.delete(`/api/v1/votes/${id}`).then((r) => r.data);
+export const deleteVoteOption = (optionId: number) => api.delete(`/api/v1/votes/options/${optionId}`).then((r) => r.data);
+export const updatePrinciple = (id: number, data: { title: string; body: string }) =>
+  api.put(`/api/v1/mapping/principles/${id}`, data).then((r) => r.data);
+export const deletePrinciple = (id: number) => api.delete(`/api/v1/mapping/principles/${id}`).then((r) => r.data);
+
 export { API_URL };

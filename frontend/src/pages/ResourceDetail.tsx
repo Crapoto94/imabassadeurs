@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, FileText, ExternalLink, Check, X } from 'lucide-react';
-import { Card, PageTitle, Spinner, Alert, Badge, Button, Textarea } from '../components/ui';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, FileText, ExternalLink, Check, X, Pencil, Trash2, Save } from 'lucide-react';
+import { Card, PageTitle, Spinner, Alert, Badge, Button, Textarea, Input, Field } from '../components/ui';
 import StarRating from '../components/StarRating';
 import AiPanel from '../components/AiPanel';
 import CommentThread from '../components/CommentThread';
-import { getResource, rateResource, reviewResource, synthResource, synthResourceThread } from '../api/endpoints';
+import { deleteResource, getResource, rateResource, reviewResource, synthResource, synthResourceThread, updateResource } from '../api/endpoints';
 import { API_URL, errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import type { Resource } from '../types';
@@ -13,18 +13,38 @@ import type { Resource } from '../types';
 export default function ResourceDetail() {
   const { id } = useParams();
   const rid = Number(id);
-  const { canInteract, isIanimateur } = useAuth();
+  const navigate = useNavigate();
+  const { canInteract, isIanimateur, isAdmin, user } = useAuth();
   const [r, setR] = useState<Resource | null>(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ title: '', description: '', url: '' });
 
   async function load() {
-    try { setR(await getResource(rid)); } catch (e) { setError(errMsg(e)); }
+    try {
+      const data = await getResource(rid);
+      setR(data);
+      setForm({ title: data.title, description: data.description, url: data.url || '' });
+    } catch (e) { setError(errMsg(e)); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [rid]);
 
   if (error) return <Alert kind="error">{error}</Alert>;
   if (!r) return <div className="flex justify-center py-12"><Spinner /></div>;
+
+  const peutEditer = isAdmin || isIanimateur || r.proposed_by === user?.id;
+  const peutSupprimer = isAdmin || isIanimateur;
+
+  async function save() {
+    try { await updateResource(rid, form); setEditing(false); load(); }
+    catch (e) { setError(errMsg(e)); }
+  }
+  async function remove() {
+    if (!window.confirm('Supprimer définitivement cette ressource et sa discussion ?')) return;
+    try { await deleteResource(rid); navigate('/ressources'); }
+    catch (e) { setError(errMsg(e)); }
+  }
 
   return (
     <div>
@@ -32,33 +52,51 @@ export default function ResourceDetail() {
       <PageTitle
         title={r.title}
         subtitle={`Proposé par ${r.proposed_by_name} le ${new Date(r.created_at).toLocaleDateString('fr-FR')}`}
-        action={<Badge color={r.status === 'published' ? 'green' : r.status === 'pending' ? 'amber' : 'red'}>{r.status}</Badge>}
+        action={
+          <div className="flex items-center gap-2">
+            <Badge color={r.status === 'published' ? 'green' : r.status === 'pending' ? 'amber' : 'red'}>{r.status}</Badge>
+            {peutEditer && !editing && <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} /> Éditer</Button>}
+            {peutSupprimer && <Button variant="danger" onClick={remove}><Trash2 size={16} /> Supprimer</Button>}
+          </div>
+        }
       />
 
-      <Card className="mb-6 space-y-4 p-5">
-        <p className="whitespace-pre-wrap text-slate-700">{r.description}</p>
-        {r.kind === 'pdf' && r.file_path && (
-          <a href={`${API_URL}/uploads/${r.file_path}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-ville-600 hover:underline">
-            <FileText size={16} /> Ouvrir le document PDF
-          </a>
-        )}
-        {r.kind === 'link' && r.url && (
-          <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-ville-600 hover:underline">
-            <ExternalLink size={16} /> {r.url}
-          </a>
-        )}
-        <div className="flex items-center gap-4 border-t border-slate-100 pt-4">
-          <div>
-            <div className="text-sm font-medium text-slate-700">Note moyenne : {r.avg_stars ?? '—'} / 4</div>
-            {canInteract && (
-              <div className="mt-1">
-                <StarRating value={r.my_rating || 0} onRate={async (v) => { await rateResource(rid, v); load(); }} />
-                <span className="text-xs text-slate-500">Votre note : {r.my_rating || '—'}</span>
-              </div>
-            )}
+      {editing ? (
+        <Card className="mb-6 space-y-3 p-5">
+          <Field label="Titre"><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
+          <Field label="Description"><Textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
+          {r.kind === 'link' && <Field label="URL"><Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} /></Field>}
+          <div className="flex gap-2">
+            <Button onClick={save}><Save size={16} /> Enregistrer</Button>
+            <Button variant="secondary" onClick={() => setEditing(false)}>Annuler</Button>
           </div>
-        </div>
-      </Card>
+        </Card>
+      ) : (
+        <Card className="mb-6 space-y-4 p-5">
+          <p className="whitespace-pre-wrap text-slate-700">{r.description}</p>
+          {r.kind === 'pdf' && r.file_path && (
+            <a href={`${API_URL}/uploads/${r.file_path}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-ville-600 hover:underline">
+              <FileText size={16} /> Ouvrir le document PDF
+            </a>
+          )}
+          {r.kind === 'link' && r.url && (
+            <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-ville-600 hover:underline">
+              <ExternalLink size={16} /> {r.url}
+            </a>
+          )}
+          <div className="flex items-center gap-4 border-t border-slate-100 pt-4">
+            <div>
+              <div className="text-sm font-medium text-slate-700">Note moyenne : {r.avg_stars ?? '—'} / 4</div>
+              {canInteract && (
+                <div className="mt-1">
+                  <StarRating value={r.my_rating || 0} onRate={async (v) => { await rateResource(rid, v); load(); }} />
+                  <span className="text-xs text-slate-500">Votre note : {r.my_rating || '—'}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {isIanimateur && r.status === 'pending' && (
         <Card className="mb-6 p-5">

@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react';
-import { ThumbsUp, Reply, Send } from 'lucide-react';
+import { ThumbsUp, Reply, Send, Pencil, Trash2, X, Check } from 'lucide-react';
 import { Button, Textarea, Spinner, EmptyState, Alert } from './ui';
-import { addComment, getComments, likeComment } from '../api/endpoints';
+import { addComment, deleteComment, getComments, likeComment, updateComment } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import type { Comment } from '../types';
 
-function CommentItem({ comment, onChanged }: { comment: Comment; onChanged: () => void }) {
+function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment; onChanged: () => void; isReply?: boolean }) {
   const { canInteract, user } = useAuth();
   const [replying, setReplying] = useState(false);
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editBody, setEditBody] = useState(comment.body);
+
+  // L'auteur ou un administrateur peut éditer/supprimer.
+  const peutModerer = user?.id === comment.author_id || user?.roles?.includes('admin');
 
   async function submitReply() {
     if (!body.trim()) return;
@@ -21,28 +26,56 @@ function CommentItem({ comment, onChanged }: { comment: Comment; onChanged: () =
     } finally { setBusy(false); }
   }
 
-  async function toggleLike() {
-    await likeComment(comment.id);
+  async function saveEdit() {
+    if (!editBody.trim()) return;
+    setBusy(true);
+    try { await updateComment(comment.id, editBody); setEditing(false); onChanged(); }
+    finally { setBusy(false); }
+  }
+
+  async function remove() {
+    if (!window.confirm('Supprimer ce commentaire ?')) return;
+    await deleteComment(comment.id);
     onChanged();
   }
 
   return (
     <div className="space-y-2">
-      <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className={`rounded-lg border p-3 ${isReply ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
         <div className="flex items-center justify-between text-xs text-slate-500">
           <span className="font-medium text-slate-700">{comment.author_name}</span>
           <span>{new Date(comment.created_at).toLocaleString('fr-FR')}</span>
         </div>
-        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{comment.body}</p>
-        {canInteract && (
+        {editing ? (
+          <div className="mt-2 space-y-2">
+            <Textarea rows={2} value={editBody} onChange={(e) => setEditBody(e.target.value)} />
+            <div className="flex gap-2">
+              <Button onClick={saveEdit} disabled={busy}><Check size={14} /> Enregistrer</Button>
+              <Button variant="secondary" onClick={() => { setEditing(false); setEditBody(comment.body); }}><X size={14} /> Annuler</Button>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{comment.body}</p>
+        )}
+        {canInteract && !editing && (
           <div className="mt-2 flex items-center gap-3 text-xs">
-            <button onClick={toggleLike} className={`inline-flex items-center gap-1 ${comment.liked ? 'text-ville-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}>
+            <button onClick={async () => { await likeComment(comment.id); onChanged(); }} className={`inline-flex items-center gap-1 ${comment.liked ? 'font-medium text-ville-600' : 'text-slate-500 hover:text-slate-700'}`}>
               <ThumbsUp size={14} aria-hidden /> {comment.likes}
             </button>
-            {!comment.parent_id && (
+            {!comment.parent_id && !isReply && (
               <button onClick={() => setReplying((v) => !v)} className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-700">
                 <Reply size={14} aria-hidden /> Répondre
               </button>
+            )}
+            {peutModerer && (
+              <>
+                <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1 text-slate-500 hover:text-ville-600">
+                  <Pencil size={13} aria-hidden /> Éditer
+                </button>
+                <button onClick={remove} className="inline-flex items-center gap-1 text-slate-500 hover:text-red-600">
+                  <Trash2 size={13} aria-hidden /> Supprimer
+                </button>
+              </>
             )}
           </div>
         )}
@@ -55,20 +88,7 @@ function CommentItem({ comment, onChanged }: { comment: Comment; onChanged: () =
       </div>
       {comment.replies?.length > 0 && (
         <div className="ml-6 space-y-2 border-l-2 border-slate-100 pl-4">
-          {comment.replies.map((r) => (
-            <div key={r.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span className="font-medium text-slate-700">{r.author_name}</span>
-                <span>{new Date(r.created_at).toLocaleString('fr-FR')}</span>
-              </div>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{r.body}</p>
-              {canInteract && (
-                <button onClick={() => { likeComment(r.id).then(onChanged); }} className={`mt-2 inline-flex items-center gap-1 text-xs ${r.liked ? 'text-ville-600 font-medium' : 'text-slate-500'}`}>
-                  <ThumbsUp size={14} aria-hidden /> {r.likes}
-                </button>
-              )}
-            </div>
-          ))}
+          {comment.replies.map((r) => <CommentItem key={r.id} comment={r} onChanged={onChanged} isReply />)}
         </div>
       )}
     </div>
@@ -76,7 +96,7 @@ function CommentItem({ comment, onChanged }: { comment: Comment; onChanged: () =
 }
 
 export default function CommentThread({ entityType, entityId }: { entityType: string; entityId: number }) {
-  const { canInteract, user } = useAuth();
+  const { canInteract } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
@@ -87,7 +107,6 @@ export default function CommentThread({ entityType, entityId }: { entityType: st
     setLoading(true);
     try {
       const data = await getComments(entityType, entityId);
-      // On enrichit pour l'ajout de réponses.
       const enrich = (c: Comment): Comment => ({ ...c, entity_type: entityType, entity_id: entityId, replies: c.replies.map(enrich) } as any);
       setComments(data.map(enrich));
     } catch (e) { setError(errMsg(e)); } finally { setLoading(false); }
