@@ -1,0 +1,19 @@
+services:
+  backend:
+    build: { context: ./backend }
+    restart: always
+    ports: ["5310:5310"]
+    env_file: [./backend/.env]
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - VITE_API_URL=${APP_API_URL:-http://localhost:5310}
+    restart: always
+    ports: ["5311:80"]
+    depends_on: [backend]
