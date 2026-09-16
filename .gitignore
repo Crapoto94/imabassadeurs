@@ -6,3 +6,6 @@ dist/
 *.log
 backend/uploads/*
 !backend/uploads/.gitkeep
+
+# Scripts de déploiement local : le .ini contient un mot de passe serveur
+pulldocker.ini

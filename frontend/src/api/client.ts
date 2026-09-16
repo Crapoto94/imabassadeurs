@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-// URL du backend injectée au build (Vite) — aucune URL codée en dur dans les composants.
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5310';
+// URL du backend injectée au build (Vite). Vide = même origine : en production Docker,
+// Nginx proxifie /api et /uploads vers le service backend (aucun CORS, aucun « localhost »).
+export const API_URL = import.meta.env.VITE_API_URL ?? '';
 
 export const api = axios.create({ baseURL: API_URL });
 

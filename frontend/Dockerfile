@@ -6,9 +6,9 @@ RUN npm install --no-audit --no-fund
 
 COPY . .
 # L'URL de l'API est injectée au build (jamais en dur dans le code).
+# ARG vide/absent = même origine : Nginx proxifie /api et /uploads vers le backend.
 ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
-RUN npm run build
+RUN if [ -n "$VITE_API_URL" ]; then export VITE_API_URL; fi && npm run build
 
 FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf

@@ -49,8 +49,11 @@ docker compose up -d --build
 ```
 
 - Backend : `http://<hôte>:5310` — Frontend : `http://<hôte>:5311`
+- Le conteneur frontend (Nginx) **proxifie `/api` et `/uploads` vers le service
+  `backend`** : le navigateur n’appelle que son origine → aucun problème de CORS ni
+  de `localhost`. Laisser `APP_API_URL` vide dans `.env` (racine).
 - En production, exposer l’app derrière un reverse-proxy (Nginx/Traefik) en HTTPS
-  (ex. `https://charte-ia.ivry.local`) et adapter `CORS_ORIGIN` / `APP_URL`.
+  (ex. `https://charte-ia.ivry.local`) et adapter `APP_URL`.
 
 ## Comptes et authentification
 

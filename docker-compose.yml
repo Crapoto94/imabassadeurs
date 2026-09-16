@@ -13,7 +13,9 @@ services:
     build:
       context: ./frontend
       args:
-        - VITE_API_URL=${APP_API_URL:-http://localhost:5310}
+        # Vide = même origine : Nginx proxifie /api et /uploads vers le backend.
+        # Renseigner APP_API_URL uniquement si l'API est sur une autre origine.
+        - VITE_API_URL=${APP_API_URL:-}
     restart: always
     ports: ["5311:80"]
     depends_on: [backend]
