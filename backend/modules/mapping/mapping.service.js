@@ -61,7 +61,33 @@ async function createLink(user, data) {
 }
 
 async function deleteLink(user, id) {
+  const link = await db.get(`SELECT created_by FROM ${SCHEMA}.idea_links WHERE id=$1`, [id]);
+  if (!link) throw Object.assign(new Error('Lien introuvable'), { status: 404 });
+  if (link.created_by !== user.id && !user.roles.includes('admin') && !user.roles.includes('ianimateur')) {
+    throw Object.assign(new Error('Droits insuffisants'), { status: 403 });
+  }
   await db.run(`DELETE FROM ${SCHEMA}.idea_links WHERE id=$1`, [id]);
+  return { id, deleted: true };
+}
+
+async function updatePrinciple(user, id, data) {
+  if (!(user.roles.includes('admin') || user.roles.includes('ianimateur'))) {
+    throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
+  }
+  const { title, body } = data;
+  if (!title || !body) throw Object.assign(new Error('Titre et contenu requis'), { status: 400 });
+  await db.run(`UPDATE ${SCHEMA}.charter_principles SET title=$2, body=$3 WHERE id=$1`, [id, title, body]);
+  await logAction(user.id, 'principle_update', 'principle', id, null);
+  return { id, title, body };
+}
+
+async function deletePrinciple(user, id) {
+  if (!(user.roles.includes('admin') || user.roles.includes('ianimateur'))) {
+    throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
+  }
+  await db.run(`DELETE FROM ${SCHEMA}.idea_links WHERE target_type='principle' AND target_id=$1`, [id]);
+  await db.run(`DELETE FROM ${SCHEMA}.charter_principles WHERE id=$1`, [id]);
+  await logAction(user.id, 'principle_delete', 'principle', id, null);
   return { id, deleted: true };
 }
 
@@ -190,7 +216,7 @@ async function stats() {
 }
 
 module.exports = {
-  listPrinciples, createPrinciple, setPrincipleStatus,
+  listPrinciples, createPrinciple, setPrincipleStatus, updatePrinciple, deletePrinciple,
   createLink, deleteLink,
   graph, generateClusters, analyseConsensus, stats, extractJson,
 };

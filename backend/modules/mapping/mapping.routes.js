@@ -16,6 +16,12 @@ router.post('/principles', requireAuth, requireInteract, asyncHandler(async (req
 router.patch('/principles/:id/status', requireAuth, requireIanimateur, asyncHandler(async (req, res) => {
   res.json(await service.setPrincipleStatus(req.user, id(req.params.id), req.body.status));
 }));
+router.put('/principles/:id', requireAuth, requireInteract, asyncHandler(async (req, res) => {
+  res.json(await service.updatePrinciple(req.user, id(req.params.id), req.body));
+}));
+router.delete('/principles/:id', requireAuth, requireInteract, asyncHandler(async (req, res) => {
+  res.json(await service.deletePrinciple(req.user, id(req.params.id)));
+}));
 
 router.post('/links', requireAuth, requireInteract, asyncHandler(async (req, res) => {
   res.status(201).json(await service.createLink(req.user, req.body));

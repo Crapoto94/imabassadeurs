@@ -3,6 +3,9 @@ const ia = require('../../services/ia');
 const comments = require('../comments/comments.service');
 const { pageParams } = require('../../utils/pagination');
 const { logAction } = require('../../utils/audit');
+const { supprimerReferences } = require('../../utils/polymorphic');
+
+const estModerateur = (user) => user.roles.includes('admin') || user.roles.includes('ianimateur');
 
 async function list(user, query) {
   const { limit, offset } = pageParams(query);
@@ -89,4 +92,39 @@ async function synthesize(user, id) {
   });
 }
 
-module.exports = { list, getById, create, amend, synthesize };
+// Édition : admin/IAnimateur. Un changement d'importance/probabilité est tracé
+// dans risk_amendments (conservation de l'historique).
+async function update(user, id, data) {
+  if (!estModerateur(user)) throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
+  const r = await getById(id);
+  const { title, description, concerns_ivry, importance, probability, reason } = data;
+  if (!title || !description) throw Object.assign(new Error('Titre et description requis'), { status: 400 });
+  const imp = importance != null ? parseInt(importance, 10) : r.importance;
+  const prob = probability != null ? parseInt(probability, 10) : r.probability;
+  if (!(imp >= 1 && imp <= 4) || !(prob >= 1 && prob <= 4)) throw Object.assign(new Error('Valeurs entre 1 et 4'), { status: 400 });
+  await db.run(
+    `UPDATE ${SCHEMA}.risks SET title=$2, description=$3, concerns_ivry=$4, importance=$5, probability=$6 WHERE id=$1`,
+    [id, title, description, concerns_ivry !== false, imp, prob]
+  );
+  if (imp !== r.importance || prob !== r.probability) {
+    await db.run(
+      `INSERT INTO ${SCHEMA}.risk_amendments (risk_id, importance, probability, amended_by, reason)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [id, imp, prob, user.id, reason || 'Modification par modération']
+    );
+  }
+  await logAction(user.id, 'risk_update', 'risk', id, null);
+  return getById(id);
+}
+
+async function remove(user, id) {
+  if (!estModerateur(user)) throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
+  const r = await db.get(`SELECT id FROM ${SCHEMA}.risks WHERE id=$1`, [id]);
+  if (!r) throw Object.assign(new Error('Risque introuvable'), { status: 404 });
+  await supprimerReferences('risk', id);
+  await db.run(`DELETE FROM ${SCHEMA}.risks WHERE id=$1`, [id]);
+  await logAction(user.id, 'risk_delete', 'risk', id, null);
+  return { id, deleted: true };
+}
+
+module.exports = { list, getById, create, amend, synthesize, update, remove };

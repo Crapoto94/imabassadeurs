@@ -1,5 +1,6 @@
 const { db, SCHEMA } = require('../../pg_db');
 const notifications = require('../../services/notifications');
+const { supprimerReferences } = require('../../utils/polymorphic');
 
 const ENTITY_TABLES = {
   resource: { table: 'resources', owner: 'proposed_by', category: 'resources' },
@@ -88,4 +89,27 @@ async function threadText(entityType, entityId) {
   return rows.map((r) => `${r.author} : ${r.body}`).join('\n');
 }
 
-module.exports = { list, add, toggleLike, threadText, entityAuthor };
+// Édition/suppression d'un commentaire : son auteur ou un administrateur.
+async function update(user, commentId, body) {
+  const c = await db.get(`SELECT author_id FROM ${SCHEMA}.comments WHERE id=$1`, [commentId]);
+  if (!c) throw Object.assign(new Error('Commentaire introuvable'), { status: 404 });
+  if (c.author_id !== user.id && !user.roles.includes('admin')) {
+    throw Object.assign(new Error('Droits insuffisants'), { status: 403 });
+  }
+  if (!body || !body.trim()) throw Object.assign(new Error('Commentaire vide'), { status: 400 });
+  await db.run(`UPDATE ${SCHEMA}.comments SET body=$2, edited_at=now() WHERE id=$1`, [commentId, body.trim()]);
+  return { id: commentId, edited: true };
+}
+
+async function remove(user, commentId) {
+  const c = await db.get(`SELECT author_id FROM ${SCHEMA}.comments WHERE id=$1`, [commentId]);
+  if (!c) throw Object.assign(new Error('Commentaire introuvable'), { status: 404 });
+  if (c.author_id !== user.id && !user.roles.includes('admin')) {
+    throw Object.assign(new Error('Droits insuffisants'), { status: 403 });
+  }
+  await supprimerReferences('comment', commentId);
+  await db.run(`DELETE FROM ${SCHEMA}.comments WHERE id=$1`, [commentId]);
+  return { id: commentId, deleted: true };
+}
+
+module.exports = { list, add, toggleLike, threadText, entityAuthor, update, remove };

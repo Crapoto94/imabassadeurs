@@ -22,4 +22,12 @@ router.post('/:entityType/:entityId', requireAuth, requireInteract, asyncHandler
   res.status(201).json({ id });
 }));
 
+router.put('/:commentId', requireAuth, requireInteract, asyncHandler(async (req, res) => {
+  res.json(await service.update(req.user, parseInt(req.params.commentId, 10), req.body.body));
+}));
+
+router.delete('/:commentId', requireAuth, requireInteract, asyncHandler(async (req, res) => {
+  res.json(await service.remove(req.user, parseInt(req.params.commentId, 10)));
+}));
+
 module.exports = router;

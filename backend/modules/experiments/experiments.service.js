@@ -3,6 +3,7 @@ const ia = require('../../services/ia');
 const comments = require('../comments/comments.service');
 const { pageParams } = require('../../utils/pagination');
 const { logAction } = require('../../utils/audit');
+const { supprimerReferences } = require('../../utils/polymorphic');
 
 const canEdit = (user, exp) =>
   user.roles.includes('ianimateur') || user.roles.includes('admin') || exp.created_by === user.id;
@@ -86,4 +87,34 @@ async function synthesize(user, id) {
   });
 }
 
-module.exports = { list, getById, create, updateStatus, toggleJoin, synthesize, canEdit };
+// Édition/suppression : auteur, IAnimateur ou admin (cf. canEdit).
+async function update(user, id, data) {
+  const exp = await db.get(`SELECT created_by FROM ${SCHEMA}.experiments WHERE id=$1`, [id]);
+  if (!exp) throw Object.assign(new Error('Expérimentation introuvable'), { status: 404 });
+  if (!canEdit(user, exp)) throw Object.assign(new Error('Droits insuffisants'), { status: 403 });
+  const { title, description, objective, target_date, status } = data;
+  if (!title || !description || !objective) throw Object.assign(new Error('Titre, description et objectif requis'), { status: 400 });
+  if (status && !['planned', 'ongoing', 'completed', 'abandoned'].includes(status)) {
+    throw Object.assign(new Error('Statut invalide'), { status: 400 });
+  }
+  await db.run(
+    `UPDATE ${SCHEMA}.experiments
+        SET title=$2, description=$3, objective=$4, target_date=$5, status=COALESCE($6, status)
+      WHERE id=$1`,
+    [id, title, description, objective, target_date || null, status || null]
+  );
+  await logAction(user.id, 'experiment_update', 'experiment', id, null);
+  return getById(id, user);
+}
+
+async function remove(user, id) {
+  const exp = await db.get(`SELECT created_by FROM ${SCHEMA}.experiments WHERE id=$1`, [id]);
+  if (!exp) throw Object.assign(new Error('Expérimentation introuvable'), { status: 404 });
+  if (!canEdit(user, exp)) throw Object.assign(new Error('Droits insuffisants'), { status: 403 });
+  await supprimerReferences('experiment', id);
+  await db.run(`DELETE FROM ${SCHEMA}.experiments WHERE id=$1`, [id]);
+  await logAction(user.id, 'experiment_delete', 'experiment', id, null);
+  return { id, deleted: true };
+}
+
+module.exports = { list, getById, create, updateStatus, toggleJoin, synthesize, update, remove, canEdit };

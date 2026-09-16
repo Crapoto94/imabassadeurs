@@ -128,4 +128,30 @@ async function votesText() {
   return rows.map((r) => `${r.question} — ${r.label} : ${r.voix} voix`).join('\n');
 }
 
-module.exports = { listSessions, getSession, create, addOption, vote, close, votesText };
+const estModerateur = (user) => user.roles.includes('admin') || user.roles.includes('ianimateur');
+
+async function updateSession(user, id, data) {
+  if (!estModerateur(user)) throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
+  const s = await db.get(`SELECT id FROM ${SCHEMA}.vote_sessions WHERE id=$1`, [id]);
+  if (!s) throw Object.assign(new Error('Session introuvable'), { status: 404 });
+  const { question, closes_at } = data;
+  if (!question) throw Object.assign(new Error('Question requise'), { status: 400 });
+  await db.run(`UPDATE ${SCHEMA}.vote_sessions SET question=$2, closes_at=$3 WHERE id=$1`, [id, question, closes_at || null]);
+  await logAction(user.id, 'vote_update', 'vote_session', id, null);
+  return getSession(id, user);
+}
+
+async function removeSession(user, id) {
+  if (!estModerateur(user)) throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
+  await db.run(`DELETE FROM ${SCHEMA}.vote_sessions WHERE id=$1`, [id]);
+  await logAction(user.id, 'vote_delete', 'vote_session', id, null);
+  return { id, deleted: true };
+}
+
+async function removeOption(user, optionId) {
+  if (!estModerateur(user)) throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
+  await db.run(`DELETE FROM ${SCHEMA}.vote_options WHERE id=$1`, [optionId]);
+  return { id: optionId, deleted: true };
+}
+
+module.exports = { listSessions, getSession, create, addOption, vote, close, votesText, updateSession, removeSession, removeOption };

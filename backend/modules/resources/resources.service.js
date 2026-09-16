@@ -1,9 +1,11 @@
 const fs = require('fs');
+const path = require('path');
 const { db, SCHEMA } = require('../../pg_db');
 const ia = require('../../services/ia');
 const comments = require('../comments/comments.service');
 const { pageParams } = require('../../utils/pagination');
 const { logAction } = require('../../utils/audit');
+const { supprimerReferences } = require('../../utils/polymorphic');
 
 const isModerator = (user) => user.roles.includes('ianimateur') || user.roles.includes('admin');
 
@@ -113,7 +115,7 @@ async function rate(user, id, stars) {
 
 async function synthesizeDocument(user, id) {
   const r = await getById(id, user);
-  const contenu = await extraireTexte(r.file_path ? require('path').join(__dirname, '..', '..', 'uploads', r.file_path) : null);
+  const contenu = await extraireTexte(r.file_path ? path.join(__dirname, '..', '..', 'uploads', r.file_path) : null);
   return ia.executerActionIA('resource_synthesis', {
     titre: r.title,
     description: r.description,
@@ -127,4 +129,39 @@ async function synthesizeThread(user, id) {
   return ia.executerActionIA('thread_synthesis', { titre_entite: r.title, commentaires: fil || '(aucun commentaire)' });
 }
 
-module.exports = { list, getById, create, review, rate, synthesizeDocument, synthesizeThread, isModerator };
+// ───────────────────────── Modération (édition / suppression) ───────────────
+// Édite le titre/description/url : admin, IAnimateur ou auteur.
+async function update(user, id, data) {
+  const r = await db.get(`SELECT proposed_by, kind FROM ${SCHEMA}.resources WHERE id=$1`, [id]);
+  if (!r) throw Object.assign(new Error('Ressource introuvable'), { status: 404 });
+  const autorise = user.roles.includes('admin') || user.roles.includes('ianimateur') || r.proposed_by === user.id;
+  if (!autorise) throw Object.assign(new Error('Droits insuffisants'), { status: 403 });
+  const { title, description, url } = data;
+  if (!title || !description) throw Object.assign(new Error('Titre et description requis'), { status: 400 });
+  await db.run(
+    `UPDATE ${SCHEMA}.resources SET title=$2, description=$3, url=$4 WHERE id=$1`,
+    [id, title, description, r.kind === 'link' ? (url || null) : null]
+  );
+  await logAction(user.id, 'resource_update', 'resource', id, null);
+  return getById(id, user);
+}
+
+// Supprime une ressource (et son contenu lié) : admin ou IAnimateur.
+async function remove(user, id) {
+  if (!isModerator(user)) throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
+  const r = await db.get(`SELECT file_path FROM ${SCHEMA}.resources WHERE id=$1`, [id]);
+  if (!r) throw Object.assign(new Error('Ressource introuvable'), { status: 404 });
+  await supprimerReferences('resource', id);
+  await db.run(`DELETE FROM ${SCHEMA}.resources WHERE id=$1`, [id]);
+  if (r.file_path) {
+    const file = path.join(__dirname, '..', '..', 'uploads', r.file_path);
+    fs.promises.unlink(file).catch(() => {});
+  }
+  await logAction(user.id, 'resource_delete', 'resource', id, null);
+  return { id, deleted: true };
+}
+
+module.exports = {
+  list, getById, create, review, rate, synthesizeDocument, synthesizeThread,
+  update, remove, isModerator,
+};

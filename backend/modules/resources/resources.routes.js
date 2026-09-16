@@ -26,6 +26,8 @@ const upload = multer({
 router.get('/', requireAuth, asyncHandler(ctrl.list));
 router.get('/:id', requireAuth, asyncHandler(ctrl.getOne));
 router.post('/', requireAuth, requireInteract, upload.single('file'), asyncHandler(ctrl.create));
+router.put('/:id', requireAuth, requireInteract, asyncHandler(ctrl.update));
+router.delete('/:id', requireAuth, requireInteract, asyncHandler(ctrl.remove));
 router.post('/:id/review', requireAuth, requireIanimateur, asyncHandler(ctrl.review));
 router.post('/:id/rate', requireAuth, requireInteract, asyncHandler(ctrl.rate));
 router.post('/:id/synthesize', requireAuth, requireInteract, asyncHandler(ctrl.synthDoc));

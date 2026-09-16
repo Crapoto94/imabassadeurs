@@ -19,5 +19,14 @@ router.post('/:id/vote', requireAuth, requireInteract, asyncHandler(async (req, 
 router.post('/:id/close', requireAuth, requireIanimateur, asyncHandler(async (req, res) => {
   res.json(await service.close(req.user, parseInt(req.params.id, 10)));
 }));
+router.put('/:id', requireAuth, requireInteract, asyncHandler(async (req, res) => {
+  res.json(await service.updateSession(req.user, parseInt(req.params.id, 10), req.body));
+}));
+router.delete('/:id', requireAuth, requireInteract, asyncHandler(async (req, res) => {
+  res.json(await service.removeSession(req.user, parseInt(req.params.id, 10)));
+}));
+router.delete('/options/:optionId', requireAuth, requireInteract, asyncHandler(async (req, res) => {
+  res.json(await service.removeOption(req.user, parseInt(req.params.optionId, 10)));
+}));
 
 module.exports = router;
