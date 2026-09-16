@@ -62,6 +62,9 @@ docker compose up -d --build
   **Lecteur**).
 - Les interactions (proposer, commenter, voter, liker) nécessitent un rôle nommé
   (`iambassadeur`, `iaeclaireur`, `ianimateur`) ou `admin`, attribué depuis le module Admin.
+- **Amorçage en production** : définir `ADMIN_USERS=login1,login2` — ces identifiants
+  AD reçoivent le rôle **admin** à leur première connexion. Sans cela, personne ne
+  peut administrer l’application après l’installation. Ensuite, retirer le surplus.
 - **Développement uniquement** : si `SEED_ADMIN_USERNAME`/`SEED_ADMIN_PASSWORD` sont
   définis et qu’aucun admin n’existe, un admin local est créé (repli si l’AD est
   injoignable). En local, `admin` / `admin` est seedé.

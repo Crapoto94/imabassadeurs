@@ -39,6 +39,20 @@ async function upsertUser(username, info) {
   return created.id;
 }
 
+// Amorçage : les identifiants AD listés dans ADMIN_USERS (séparés par des virgules)
+// reçoivent le rôle admin automatiquement. Indispensable en production : sans cela,
+// aucun agent ne dispose du rôle admin après l'installation (pas de compte local).
+async function bootstrapAdmin(userId, username) {
+  const list = (process.env.ADMIN_USERS || '')
+    .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (!list.includes(String(username).toLowerCase())) return;
+  await db.run(
+    `INSERT INTO ${SCHEMA}.user_roles (user_id, role, granted_by)
+     VALUES ($1, 'admin', NULL) ON CONFLICT (user_id, role) DO NOTHING`,
+    [userId]
+  );
+}
+
 // POST /api/v1/auth/login — authentification AD via APM, puis JWT applicatif.
 async function login(req, res) {
   const { username, password } = req.body || {};
@@ -66,6 +80,8 @@ async function login(req, res) {
   if (!userId) {
     return res.status(401).json({ error: auth.error || 'Identifiants invalides' });
   }
+
+  await bootstrapAdmin(userId, username);
 
   const user = await loadUser(userId);
   await logAction(userId, 'login', 'user', userId, null);
