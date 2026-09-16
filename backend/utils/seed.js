@@ -1,16 +1,13 @@
 const bcrypt = require('bcryptjs');
 const { db, SCHEMA } = require('../pg_db');
 
-// Crée/garantit un administrateur local (dev / amorçage) si aucun admin n'existe.
+// Compte de secours local (dev, ou production avec LOCAL_LOGIN_ENABLED=true).
+// Le mot de passe est aligné sur SEED_ADMIN_PASSWORD à chaque démarrage, ce qui
+// permet de le faire tourner via le .env sans toucher à la base.
 async function seedAdmin() {
-  const username = process.env.SEED_ADMIN_USERNAME;
+  const username = (process.env.SEED_ADMIN_USERNAME || '').trim();
   const password = process.env.SEED_ADMIN_PASSWORD;
   if (!username || !password) return;
-
-  const existingAdmin = await db.get(
-    `SELECT 1 FROM ${SCHEMA}.user_roles WHERE role='admin' LIMIT 1`
-  );
-  if (existingAdmin) return;
 
   const hash = await bcrypt.hash(password, 10);
   let user = await db.get(`SELECT id FROM ${SCHEMA}.users WHERE ad_username=$1`, [username]);
@@ -27,7 +24,7 @@ async function seedAdmin() {
     `INSERT INTO ${SCHEMA}.user_roles (user_id, role) VALUES ($1,'admin') ON CONFLICT DO NOTHING`,
     [user.id]
   );
-  console.log(`[SEED] Administrateur local « ${username} » prêt`);
+  console.log(`[SEED] Compte de secours « ${username} » prêt`);
 }
 
 module.exports = { seedAdmin };

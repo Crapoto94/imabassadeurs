@@ -65,8 +65,9 @@ async function login(req, res) {
     const agent = await apm.getAgent(username);
     const info = normaliserAgent(agent, username);
     userId = await upsertUser(username, info);
-  } else if (process.env.NODE_ENV !== 'production') {
-    // Repli de développement : compte local seedé (AD/APM injoignable).
+  } else if (process.env.NODE_ENV !== 'production' || process.env.LOCAL_LOGIN_ENABLED === 'true') {
+    // Repli de développement, ou compte de secours en production si
+    // LOCAL_LOGIN_ENABLED=true (compte local seedé, AD/APM injoignable).
     const local = await db.get(
       `SELECT id, password_hash FROM ${SCHEMA}.users WHERE ad_username = $1`,
       [username]

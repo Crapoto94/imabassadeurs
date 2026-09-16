@@ -65,9 +65,10 @@ docker compose up -d --build
 - **Amorçage en production** : définir `ADMIN_USERS=login1,login2` — ces identifiants
   AD reçoivent le rôle **admin** à leur première connexion. Sans cela, personne ne
   peut administrer l’application après l’installation. Ensuite, retirer le surplus.
-- **Développement uniquement** : si `SEED_ADMIN_USERNAME`/`SEED_ADMIN_PASSWORD` sont
-  définis et qu’aucun admin n’existe, un admin local est créé (repli si l’AD est
-  injoignable). En local, `admin` / `admin` est seedé.
+- **Compte de secours local** : `SEED_ADMIN_USERNAME`/`SEED_ADMIN_PASSWORD` créent (ou
+  mettent à jour) un compte admin local à mot de passe. Il n’est utilisable que si
+  `LOCAL_LOGIN_ENABLED=true` ou hors production. En production, le laisser désactivé
+  et utiliser un compte AD (via `ADMIN_USERS`) ; en local, `admin` / `admin` est seedé.
 
 ## Jetons à demander
 
