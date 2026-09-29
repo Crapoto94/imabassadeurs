@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, RefreshCw } from 'lucide-react';
-import { Button, Alert, Spinner } from './ui';
+import { StitchAlert } from './stitch';
 import { errMsg } from '../api/client';
 import type { AiResult } from '../types';
 
@@ -22,21 +21,26 @@ export default function AiPanel({ label, run }: { label: string; run: () => Prom
   }
 
   return (
-    <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-purple-900">
-          <Sparkles size={16} aria-hidden /> {label}
+    <div className="rounded-xl bg-surface-container-low p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-secondary text-[20px]">auto_awesome</span>
+          <span className="font-headline text-headline-sm text-primary font-bold">{label}</span>
+          <span className="px-2 py-0.5 bg-tertiary-fixed text-on-tertiary-fixed rounded-full font-headline text-label-sm">Modèle souverain local</span>
         </div>
-        <Button variant="secondary" onClick={executer} disabled={loading}>
-          {loading ? <Spinner /> : result ? <RefreshCw size={16} /> : <Sparkles size={16} />}
-          {result ? 'Relancer' : 'Générer'}
-        </Button>
+        <button
+          className="flex items-center gap-1.5 px-3.5 py-1.5 bg-secondary hover:bg-secondary-container text-on-secondary rounded-full font-headline text-label-md shadow-sm transition-all disabled:opacity-50"
+          onClick={executer} disabled={loading} type="button"
+        >
+          <span className={`material-symbols-outlined text-[18px] ${loading ? 'animate-spin' : ''}`}>{loading ? 'sync' : result ? 'refresh' : 'auto_awesome'}</span>
+          <span>{loading ? 'Génération…' : result ? 'Relancer' : 'Générer'}</span>
+        </button>
       </div>
-      {error && <div className="mt-3"><Alert kind="error">{error}</Alert></div>}
+      {error && <StitchAlert kind="error">{error}</StitchAlert>}
       {result && (
-        <div className="mt-3 space-y-2">
-          <p className="whitespace-pre-wrap text-sm text-slate-800">{result.response}</p>
-          <p className="text-xs text-purple-700">
+        <div className="space-y-2">
+          <p className="whitespace-pre-wrap font-body text-body-sm text-on-surface leading-relaxed">{result.response}</p>
+          <p className="font-body text-body-sm text-secondary">
             Contenu généré par IA{result.model_name ? ` (${result.model_name})` : ''} — à vérifier.
           </p>
         </div>

@@ -1,174 +1,439 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { Settings, Users, Sparkles, ScrollText, Save, Play } from 'lucide-react';
-import { Card, PageTitle, Field, Input, Textarea, Select, Button, Badge, Spinner, Alert } from '../components/ui';
-import { getAiModels, getAudit, getPrompts, getSettings, getUsers, grantRole, revokeRole, testPrompt, updatePrompt, updateSettings } from '../api/endpoints';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import {
+  getAiModels, getAudit, getPrompts, getSettings, getUsers, grantRole, revokeRole,
+  testPrompt, updatePrompt, updateSettings,
+} from '../api/endpoints';
 import { errMsg } from '../api/client';
+import {
+  Avatar, GhostButton, PrimaryButton, SectionCard, StitchAlert, StitchField, StitchInput,
+  StitchSelect, StitchSpinner, StitchTextarea, useToast,
+} from '../components/stitch';
 import type { AiResult } from '../types';
 
-const ROLES = ['admin', 'iambassadeur', 'iaeclaireur', 'ianimateur'];
-const TABS = [
-  { key: 'settings', label: 'Paramètres', icon: Settings },
-  { key: 'users', label: 'Utilisateurs & rôles', icon: Users },
-  { key: 'prompts', label: 'Prompts IA', icon: Sparkles },
-  { key: 'audit', label: 'Journal d’audit', icon: ScrollText },
+const ROLES = [
+  { key: 'admin', label: 'Admin' },
+  { key: 'iambassadeur', label: 'IAmbassadeur' },
+  { key: 'iaeclaireur', label: 'IA.Éclaireur' },
+  { key: 'ianimateur', label: 'IAnimateur' },
 ];
 
+type TabKey = 'users' | 'prompts' | 'settings' | 'audit';
+
 export default function Admin() {
-  const [tab, setTab] = useState('settings');
+  const [tab, setTab] = useState<TabKey>('users');
+  const tabs: { key: TabKey; icon: string; label: string }[] = [
+    { key: 'users', icon: 'group', label: 'Utilisateurs & Rôles' },
+    { key: 'prompts', icon: 'psychology', label: 'Paramétrage Prompts IA' },
+    { key: 'settings', icon: 'tune', label: 'Paramètres Généraux & Footer' },
+    { key: 'audit', icon: 'receipt_long', label: "Journal d'Audit" },
+  ];
+
   return (
     <div>
-      <PageTitle title="Administration" subtitle="Paramètres techniques, comptes, prompts IA et audit." />
-      <div className="mb-6 flex flex-wrap gap-2">
-        {TABS.map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${tab === key ? 'bg-ville-500 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>
-            <Icon size={16} /> {label}
-          </button>
-        ))}
+      {/* Bannière système */}
+      <div className="w-full bg-surface-container-low px-4 sm:px-6 lg:px-8 py-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-sm">
+              <span className="material-symbols-outlined text-[26px]">admin_panel_settings</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="font-headline text-headline-lg-mobile lg:text-headline-lg text-primary tracking-tight">Console d'Administration</h1>
+                <span className="px-2 py-0.5 rounded-full bg-error-container text-on-error-container font-headline text-label-sm font-semibold tracking-wide uppercase">Accès Réservé</span>
+              </div>
+              <p className="font-body text-body-sm text-on-surface-variant">Direction des Systèmes d'Information • Ville d'Ivry-sur-Seine</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-lowest rounded-xl shadow-card">
+              <span className="w-2.5 h-2.5 rounded-full bg-tertiary-fixed-dim animate-pulse" />
+              <div className="flex flex-col">
+                <span className="font-headline text-label-sm text-outline">Passerelle AD APM</span>
+                <span className="font-headline text-label-md text-on-surface font-semibold">Fédération des comptes</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2 bg-surface-container-lowest rounded-xl shadow-card">
+              <span className="material-symbols-outlined text-primary-container text-[20px]">security</span>
+              <div className="flex flex-col">
+                <span className="font-headline text-label-sm text-outline">Audit Log Actif</span>
+                <span className="font-headline text-label-md text-on-surface font-semibold">Traçabilité nominative</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      {tab === 'settings' && <SettingsTab />}
-      {tab === 'users' && <UsersTab />}
-      {tab === 'prompts' && <PromptsTab />}
-      {tab === 'audit' && <AuditTab />}
+
+      {/* Onglets */}
+      <div className="w-full bg-surface-container-lowest shadow-sm sticky top-16 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-1 sm:space-x-4 overflow-x-auto py-2.5" aria-label="Onglets d'administration">
+            {tabs.map(({ key, icon, label }) => (
+              <button
+                key={key}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-full font-headline text-label-md transition-all whitespace-nowrap ${tab === key ? 'bg-primary-container text-on-primary-container font-semibold shadow-sm' : 'text-on-surface-variant hover:bg-surface-container'}`}
+                onClick={() => setTab(key)} type="button"
+              >
+                <span className="material-symbols-outlined text-[18px]">{icon}</span>
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+        {tab === 'users' && <UsersTab />}
+        {tab === 'prompts' && <PromptsTab />}
+        {tab === 'settings' && <SettingsTab />}
+        {tab === 'audit' && <AuditTab />}
+      </div>
     </div>
   );
 }
 
-function SettingsTab() {
-  const [s, setS] = useState<any>(null);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState('');
-  useEffect(() => { getSettings().then(setS).catch((e) => setError(errMsg(e))); }, []);
-  if (!s) return <div className="flex justify-center py-8"><Spinner /></div>;
-  async function save(e: FormEvent) {
-    e.preventDefault(); setError(''); setSaved(false);
-    try { await updateSettings(s); setSaved(true); } catch (err) { setError(errMsg(err)); }
-  }
-  return (
-    <Card className="p-5">
-      <form onSubmit={save} className="space-y-4">
-        <Field label="Nom de l’organisation"><Input value={s.org_name || ''} onChange={(e) => setS({ ...s, org_name: e.target.value })} /></Field>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Pied de page 1"><Input value={s.footer_line1 || ''} onChange={(e) => setS({ ...s, footer_line1: e.target.value })} /></Field>
-          <Field label="Pied de page 2"><Input value={s.footer_line2 || ''} onChange={(e) => setS({ ...s, footer_line2: e.target.value })} /></Field>
-          <Field label="Pied de page 3"><Input value={s.footer_line3 || ''} onChange={(e) => setS({ ...s, footer_line3: e.target.value })} /></Field>
-        </div>
-        <Field label="Couleur du pied de page"><Input type="color" value={s.footer_color || '#0055A4'} onChange={(e) => setS({ ...s, footer_color: e.target.value })} /></Field>
-        {error && <Alert kind="error">{error}</Alert>}
-        {saved && <Alert kind="success">Paramètres enregistrés.</Alert>}
-        <Button type="submit"><Save size={16} /> Enregistrer</Button>
-      </form>
-    </Card>
-  );
-}
+// ── Onglet Utilisateurs & rôles ──
 
 function UsersTab() {
+  const { show, Toast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  async function load() { try { setUsers(await getUsers({ search: search || undefined })); } catch (e) { setError(errMsg(e)); } }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [search]);
-  return (
-    <Card className="p-5">
-      <div className="mb-4 flex items-end gap-2">
-        <Field label="Rechercher"><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nom ou identifiant" /></Field>
-      </div>
-      {error && <Alert kind="error">{error}</Alert>}
-      <div className="space-y-3">
-        {users.map((u) => (
-          <div key={u.id} className="rounded-lg border border-slate-200 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="font-medium">{u.display_name} <span className="text-xs text-slate-400">({u.ad_username})</span></div>
-                <div className="text-xs text-slate-500">{u.direction || '—'} · {u.service || '—'} · {u.email || '—'}</div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {ROLES.map((role) => {
-                  const has = u.roles?.includes(role);
-                  return (
-                    <button key={role} onClick={async () => { has ? await revokeRole(u.id, role) : await grantRole(u.id, role); load(); }}
-                      className={`rounded-full px-2.5 py-0.5 text-xs ${has ? 'bg-ville-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                      {role}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        ))}
-        {users.length === 0 && <p className="text-sm text-slate-400">Aucun utilisateur.</p>}
-      </div>
-    </Card>
-  );
-}
 
-function PromptsTab() {
-  const [prompts, setPrompts] = useState<any[]>([]);
-  const [models, setModels] = useState<any[]>([]);
-  const [error, setError] = useState('');
-  const [test, setTest] = useState<Record<string, AiResult | undefined>>({});
-  useEffect(() => {
-    getPrompts().then(setPrompts).catch((e) => setError(errMsg(e)));
-    getAiModels().then((d) => setModels(Array.isArray(d) ? d : [])).catch(() => setModels([]));
-  }, []);
-  function update(key: string, patch: any) { setPrompts((ps) => ps.map((p) => p.action_key === key ? { ...p, ...patch } : p)); }
+  async function load() {
+    setLoading(true);
+    try { setUsers(await getUsers({ search: search || undefined })); }
+    catch (e) { setError(errMsg(e)); } finally { setLoading(false); }
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [search]);
+
+  const filtered = useMemo(
+    () => users.filter((u) => !roleFilter || u.roles?.includes(roleFilter)),
+    [users, roleFilter]
+  );
+
+  async function toggle(u: any, role: string, grant: boolean) {
+    try {
+      if (grant) await grantRole(u.id, role); else await revokeRole(u.id, role);
+      show(`${grant ? 'Rôle attribué' : 'Rôle retiré'} : ${role} → ${u.display_name}`);
+      load();
+    } catch (e) { setError(errMsg(e)); }
+  }
+
   return (
-    <div className="space-y-4">
-      {error && <Alert kind="error">{error}</Alert>}
-      <Alert kind="info">Le modèle préférentiel est optionnel : laissé vide, le modèle par défaut de l’APM est utilisé.</Alert>
-      {prompts.map((p) => (
-        <Card key={p.action_key} className="p-5">
-          <div className="mb-2 flex items-center justify-between"><Badge color="purple">{p.action_key}</Badge></div>
-          <div className="space-y-3">
-            <Field label="Libellé"><Input value={p.label} onChange={(e) => update(p.action_key, { label: e.target.value })} /></Field>
-            <Field label="Gabarit du prompt (variables {{...}})"><Textarea rows={5} value={p.prompt_template} onChange={(e) => update(p.action_key, { prompt_template: e.target.value })} /></Field>
-            <Field label="Modèle préférentiel">
-              <Select value={p.preferred_model || ''} onChange={(e) => update(p.action_key, { preferred_model: e.target.value || null })}>
-                <option value="">Modèle par défaut APM</option>
-                {models.map((m) => <option key={m.id} value={m.id}>{m.provider_label || m.provider} — {m.name}{m.active === false ? ' (inactif)' : ''}</option>)}
-              </Select>
-            </Field>
-            <div className="flex gap-2">
-              <Button onClick={async () => { await updatePrompt(p.action_key, p); }}><Save size={16} /> Enregistrer</Button>
-              <Button variant="secondary" onClick={async () => {
-                try { const r = await testPrompt(p.action_key, {}); setTest((t) => ({ ...t, [p.action_key]: r })); }
-                catch (e) { setError(errMsg(e)); }
-              }}><Play size={16} /> Tester</Button>
-            </div>
-            {test[p.action_key] && (
-              <Alert kind="success">{test[p.action_key]!.response}</Alert>
-            )}
+    <div className="flex flex-col space-y-6">
+      {Toast}
+      <SectionCard className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h2 className="font-headline text-headline-md text-primary font-bold">Comptes &amp; Cumul des Rôles</h2>
+          <p className="font-body text-body-sm text-on-surface-variant mt-1">
+            Les comptes sont créés à la première connexion des agents. Cochez les privilèges cumulables pour actualiser leurs droits applicatifs.
+          </p>
+        </div>
+      </SectionCard>
+
+      <SectionCard className="p-4 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+        <div className="md:col-span-8 relative">
+          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+          <input
+            className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low rounded-xl font-body text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-secondary/30 transition-all"
+            placeholder="Rechercher par identifiant, nom d'agent, e-mail…"
+            value={search} onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="md:col-span-4">
+          <StitchSelect value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+            <option value="">Tous les rôles actifs</option>
+            {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+          </StitchSelect>
+        </div>
+      </SectionCard>
+
+      {error && <StitchAlert kind="error">{error}</StitchAlert>}
+
+      <SectionCard className="overflow-hidden">
+        {loading ? <StitchSpinner /> : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left font-body text-body-sm">
+              <thead className="bg-surface-container text-on-surface-variant font-headline text-label-md">
+                <tr>
+                  <th className="py-3.5 px-4 font-semibold" scope="col">Agent</th>
+                  <th className="py-3.5 px-4 font-semibold" scope="col">Direction &amp; Service</th>
+                  {ROLES.map((r) => <th key={r.key} className="py-3.5 px-4 font-semibold text-center" scope="col">{r.label}</th>)}
+                  <th className="py-3.5 px-4 font-semibold" scope="col">Dernière session</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-container text-on-surface">
+                {filtered.map((u) => (
+                  <tr key={u.id} className="hover:bg-surface-container-low/60 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={u.display_name} size={36} />
+                        <div>
+                          <div className="font-headline text-headline-sm text-on-surface">{u.display_name}</div>
+                          <div className="font-body text-body-sm text-outline">{u.ad_username}{u.email ? ` • ${u.email}` : ''}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="font-semibold text-on-surface">{u.direction || '—'}</div>
+                      <div className="font-body text-body-sm text-on-surface-variant">{u.service || '—'}</div>
+                    </td>
+                    {ROLES.map((r) => (
+                      <td key={r.key} className="py-3.5 px-4 text-center">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 rounded accent-secondary cursor-pointer"
+                          checked={u.roles?.includes(r.key) || false}
+                          onChange={(e) => toggle(u, r.key, e.target.checked)}
+                          aria-label={`${r.label} pour ${u.display_name}`}
+                        />
+                      </td>
+                    ))}
+                    <td className="py-3.5 px-4">
+                      <span className="font-headline text-label-sm text-on-surface">
+                        {u.last_login_at ? new Date(u.last_login_at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Jamais connecté'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr><td colSpan={8} className="py-8 text-center text-outline">Aucun utilisateur pour ces critères.</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        </Card>
-      ))}
+        )}
+        <div className="p-4 bg-surface-container flex flex-col sm:flex-row items-center justify-between gap-3 font-body text-body-sm text-on-surface-variant">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px] text-tertiary-container">verified_user</span>
+            <span>Chaque bascule de rôle génère immédiatement une entrée d'audit nominative.</span>
+          </div>
+          <span className="font-headline text-label-md">{filtered.length} agent(s) affiché(s)</span>
+        </div>
+      </SectionCard>
     </div>
   );
 }
+
+// ── Onglet Prompts IA ──
+
+function PromptsTab() {
+  const { show, Toast } = useToast();
+  const [prompts, setPrompts] = useState<any[]>([]);
+  const [models, setModels] = useState<any[]>([]);
+  const [active, setActive] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [test, setTest] = useState<Record<string, AiResult | undefined>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([getPrompts(), getAiModels().catch(() => [])])
+      .then(([p, m]) => {
+        setPrompts(p);
+        setModels(Array.isArray(m) ? m : []);
+        if (p.length) setActive(p[0].action_key);
+      })
+      .catch((e) => setError(errMsg(e)))
+      .finally(() => setLoading(false));
+  }, []);
+
+  function update(key: string, patch: any) {
+    setPrompts((ps) => ps.map((p) => p.action_key === key ? { ...p, ...patch } : p));
+  }
+
+  const current = prompts.find((p) => p.action_key === active);
+
+  return (
+    <div className="flex flex-col space-y-6">
+      {Toast}
+      <SectionCard className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="font-headline text-headline-md text-primary font-bold">Catalogue des Actions IA ({prompts.length})</h2>
+            <span className="px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-headline text-label-sm font-bold">APM LLM Engine</span>
+          </div>
+          <p className="font-body text-body-sm text-on-surface-variant mt-1">
+            Les clés d'actions sont normalisées. Affinez le template de consigne et routez l'inférence vers les modèles certifiés de la Ville.
+          </p>
+        </div>
+      </SectionCard>
+
+      {error && <StitchAlert kind="error">{error}</StitchAlert>}
+      {loading ? <StitchSpinner /> : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Liste des actions */}
+          <div className="lg:col-span-4 bg-surface-container-lowest p-3 rounded-2xl shadow-card flex flex-col space-y-1">
+            <div className="px-3 py-2 font-headline text-label-sm uppercase tracking-wider text-outline">Actions Algorithmiques Système</div>
+            {prompts.map((p) => (
+              <button
+                key={p.action_key}
+                className={`text-left p-3 rounded-xl flex items-center justify-between transition-colors ${active === p.action_key ? 'bg-primary-fixed/40' : 'hover:bg-surface-container-low'}`}
+                onClick={() => setActive(p.action_key)} type="button"
+              >
+                <div>
+                  <div className={`font-headline text-headline-sm ${active === p.action_key ? 'text-primary' : 'text-on-surface'}`}>{p.label}</div>
+                  <div className="font-mono text-label-sm text-outline">{p.action_key}</div>
+                </div>
+                <span className={`material-symbols-outlined text-[20px] ${active === p.action_key ? 'text-primary' : 'text-outline'}`}>chevron_right</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Éditeur */}
+          <div className="lg:col-span-8 flex flex-col space-y-4">
+            {current && (
+              <SectionCard className="p-6 flex flex-col space-y-5">
+                <div className="pb-4 border-b border-surface-container">
+                  <span className="font-headline text-label-sm px-2.5 py-0.5 rounded-full bg-secondary text-on-secondary font-bold">Action Active</span>
+                  <h3 className="font-headline text-headline-md text-primary mt-1">{current.label} ({current.action_key})</h3>
+                </div>
+                <StitchField label="Libellé">
+                  <StitchInput value={current.label} onChange={(e) => update(current.action_key, { label: e.target.value })} />
+                </StitchField>
+                <StitchField label="Gabarit du prompt (variables {{...}})">
+                  <StitchTextarea rows={8} className="font-mono !text-body-sm" value={current.prompt_template} onChange={(e) => update(current.action_key, { prompt_template: e.target.value })} />
+                </StitchField>
+                <StitchField label="Modèle préférentiel" hint="Laissé vide, le modèle par défaut de l'APM est utilisé.">
+                  <StitchSelect value={current.preferred_model || ''} onChange={(e) => update(current.action_key, { preferred_model: e.target.value || null })}>
+                    <option value="">Modèle par défaut APM</option>
+                    {models.map((m) => (
+                      <option key={m.id} value={m.id}>{m.provider_label || m.provider} — {m.name}{m.active === false ? ' (inactif)' : ''}</option>
+                    ))}
+                  </StitchSelect>
+                </StitchField>
+                <div className="flex items-center gap-2 pt-2">
+                  <PrimaryButton
+                    icon="save"
+                    onClick={async () => { await updatePrompt(current.action_key, current); show(`Template « ${current.label} » enregistré`); }}
+                  >
+                    Enregistrer le template
+                  </PrimaryButton>
+                  <GhostButton
+                    icon="play_arrow"
+                    onClick={async () => {
+                      try {
+                        const r = await testPrompt(current.action_key, {});
+                        setTest((t) => ({ ...t, [current.action_key]: r }));
+                      } catch (e) { setError(errMsg(e)); }
+                    }}
+                  >
+                    Tester l'inférence
+                  </GhostButton>
+                </div>
+                {test[current.action_key] && (
+                  <div className="bg-tertiary-fixed/30 rounded-xl p-4 space-y-2">
+                    <span className="font-headline text-label-md text-on-tertiary-fixed-variant font-bold flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px]">smart_toy</span>
+                      Réponse de test{test[current.action_key]!.model_name ? ` — ${test[current.action_key]!.model_name}` : ''}
+                    </span>
+                    <p className="whitespace-pre-wrap font-body text-body-sm text-on-surface">{test[current.action_key]!.response}</p>
+                  </div>
+                )}
+              </SectionCard>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Onglet Paramètres ──
+
+function SettingsTab() {
+  const { show, Toast } = useToast();
+  const [s, setS] = useState<any>(null);
+  const [error, setError] = useState('');
+  useEffect(() => { getSettings().then(setS).catch((e) => setError(errMsg(e))); }, []);
+  if (!s) return <StitchSpinner />;
+
+  async function save(e: FormEvent) {
+    e.preventDefault(); setError('');
+    try { await updateSettings(s); show('Paramètres enregistrés'); }
+    catch (err) { setError(errMsg(err)); }
+  }
+
+  return (
+    <SectionCard className="p-6">
+      {Toast}
+      <h2 className="font-headline text-headline-md text-primary font-bold mb-1">Paramètres Généraux</h2>
+      <p className="font-body text-body-sm text-on-surface-variant mb-5">Identité de l'organisation et pied de page des communications (e-mails, exports).</p>
+      <form onSubmit={save} className="space-y-4">
+        <StitchField label="Nom de l'organisation">
+          <StitchInput value={s.org_name || ''} onChange={(e) => setS({ ...s, org_name: e.target.value })} />
+        </StitchField>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <StitchField label="Pied de page 1">
+            <StitchInput value={s.footer_line1 || ''} onChange={(e) => setS({ ...s, footer_line1: e.target.value })} />
+          </StitchField>
+          <StitchField label="Pied de page 2">
+            <StitchInput value={s.footer_line2 || ''} onChange={(e) => setS({ ...s, footer_line2: e.target.value })} />
+          </StitchField>
+          <StitchField label="Pied de page 3">
+            <StitchInput value={s.footer_line3 || ''} onChange={(e) => setS({ ...s, footer_line3: e.target.value })} />
+          </StitchField>
+        </div>
+        <StitchField label="Couleur du pied de page">
+          <input
+            type="color" value={s.footer_color || '#0055A4'}
+            onChange={(e) => setS({ ...s, footer_color: e.target.value })}
+            className="w-16 h-10 rounded-lg border border-outline-variant cursor-pointer bg-surface-container-lowest"
+          />
+        </StitchField>
+        {error && <StitchAlert kind="error">{error}</StitchAlert>}
+        <PrimaryButton icon="save">Enregistrer</PrimaryButton>
+      </form>
+    </SectionCard>
+  );
+}
+
+// ── Onglet Journal d'audit ──
 
 function AuditTab() {
   const [rows, setRows] = useState<any[]>([]);
   const [error, setError] = useState('');
-  useEffect(() => { getAudit({ limit: 100 }).then(setRows).catch((e) => setError(errMsg(e))); }, []);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    getAudit({ limit: 100 }).then(setRows).catch((e) => setError(errMsg(e))).finally(() => setLoading(false));
+  }, []);
+
   return (
-    <Card className="p-5">
-      {error && <Alert kind="error">{error}</Alert>}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead><tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
-            <th className="px-2 py-2">Date</th><th className="px-2 py-2">Utilisateur</th><th className="px-2 py-2">Action</th><th className="px-2 py-2">Entité</th>
-          </tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-b border-slate-100">
-                <td className="px-2 py-2">{new Date(r.created_at).toLocaleString('fr-FR')}</td>
-                <td className="px-2 py-2">{r.user_name || '—'}</td>
-                <td className="px-2 py-2">{r.action}</td>
-                <td className="px-2 py-2">{r.entity_type || '—'} {r.entity_id ? `#${r.entity_id}` : ''}</td>
+    <SectionCard className="p-6">
+      <h2 className="font-headline text-headline-md text-primary font-bold mb-1">Journal d'Audit</h2>
+      <p className="font-body text-body-sm text-on-surface-variant mb-5">100 dernières actions tracées sur la plateforme.</p>
+      {error && <StitchAlert kind="error">{error}</StitchAlert>}
+      {loading ? <StitchSpinner /> : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left font-body text-body-sm">
+            <thead className="bg-surface-container text-on-surface-variant font-headline text-label-md">
+              <tr>
+                <th className="px-3 py-2.5 font-semibold">Date</th>
+                <th className="px-3 py-2.5 font-semibold">Utilisateur</th>
+                <th className="px-3 py-2.5 font-semibold">Action</th>
+                <th className="px-3 py-2.5 font-semibold">Entité</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+            </thead>
+            <tbody className="divide-y divide-surface-container">
+              {rows.map((r) => (
+                <tr key={r.id} className="hover:bg-surface-container-low/60 transition-colors">
+                  <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">{new Date(r.created_at).toLocaleString('fr-FR')}</td>
+                  <td className="px-3 py-2 text-on-surface">{r.user_name || '—'}</td>
+                  <td className="px-3 py-2">
+                    <span className="px-2 py-0.5 rounded-full bg-surface-container font-headline text-label-sm text-on-surface-variant">{r.action}</span>
+                  </td>
+                  <td className="px-3 py-2 text-on-surface-variant">{r.entity_type || '—'} {r.entity_id ? `#${r.entity_id}` : ''}</td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr><td colSpan={4} className="py-8 text-center text-outline">Aucune entrée d'audit.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </SectionCard>
   );
 }

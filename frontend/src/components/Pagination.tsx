@@ -6,7 +6,7 @@ export default function Pagination({
   const page = Math.floor(offset / limit) + 1;
   const hasNext = count === limit;
   return (
-    <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
+    <div className="mt-4 flex items-center justify-between font-body text-body-sm text-on-surface-variant">
       <Button variant="secondary" disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - limit))}>Précédent</Button>
       <span>Page {page}</span>
       <Button variant="secondary" disabled={!hasNext} onClick={() => onChange(offset + limit)}>Suivant</Button>

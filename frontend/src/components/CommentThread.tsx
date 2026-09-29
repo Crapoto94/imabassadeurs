@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ThumbsUp, Reply, Send, Pencil, Trash2, X, Check } from 'lucide-react';
-import { Button, Textarea, Spinner, EmptyState, Alert } from './ui';
 import { addComment, deleteComment, getComments, likeComment, updateComment } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { Avatar, StitchAlert, StitchEmpty, StitchSpinner, timeAgo } from './stitch';
 import type { Comment } from '../types';
 
 function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment; onChanged: () => void; isReply?: boolean }) {
@@ -14,7 +13,6 @@ function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState(comment.body);
 
-  // L'auteur ou un administrateur peut éditer/supprimer.
   const peutModerer = user?.id === comment.author_id || user?.roles?.includes('admin');
 
   async function submitReply() {
@@ -41,53 +39,68 @@ function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment
 
   return (
     <div className="space-y-2">
-      <div className={`rounded-lg border p-3 ${isReply ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
-        <div className="flex items-center justify-between text-xs text-slate-500">
-          <span className="font-medium text-slate-700">{comment.author_name}</span>
-          <span>{new Date(comment.created_at).toLocaleString('fr-FR')}</span>
-        </div>
-        {editing ? (
-          <div className="mt-2 space-y-2">
-            <Textarea rows={2} value={editBody} onChange={(e) => setEditBody(e.target.value)} />
-            <div className="flex gap-2">
-              <Button onClick={saveEdit} disabled={busy}><Check size={14} /> Enregistrer</Button>
-              <Button variant="secondary" onClick={() => { setEditing(false); setEditBody(comment.body); }}><X size={14} /> Annuler</Button>
+      <div className="flex items-start gap-2.5">
+        <Avatar name={comment.author_name} size={isReply ? 28 : 32} />
+        <div className={`p-3 rounded-xl flex-1 space-y-1 ${isReply ? 'bg-surface-container-lowest' : 'bg-surface-container-lowest'}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="font-headline text-label-md text-on-surface">{comment.author_name}</span>
+              {user?.id === comment.author_id && (
+                <span className="px-1.5 py-0.5 bg-tertiary-fixed text-on-tertiary-fixed text-[10px] rounded font-headline font-bold">Moi</span>
+              )}
             </div>
+            <span className="font-body text-body-sm text-outline text-[11px]">{timeAgo(comment.created_at)}</span>
           </div>
-        ) : (
-          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{comment.body}</p>
-        )}
-        {canInteract && !editing && (
-          <div className="mt-2 flex items-center gap-3 text-xs">
-            <button onClick={async () => { await likeComment(comment.id); onChanged(); }} className={`inline-flex items-center gap-1 ${comment.liked ? 'font-medium text-ville-600' : 'text-slate-500 hover:text-slate-700'}`}>
-              <ThumbsUp size={14} aria-hidden /> {comment.likes}
-            </button>
-            {!comment.parent_id && !isReply && (
-              <button onClick={() => setReplying((v) => !v)} className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-700">
-                <Reply size={14} aria-hidden /> Répondre
+          {editing ? (
+            <div className="space-y-2 pt-1">
+              <textarea
+                rows={2} value={editBody} onChange={(e) => setEditBody(e.target.value)}
+                className="w-full px-3 py-2 bg-surface-container-low rounded-lg font-body text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/20"
+              />
+              <div className="flex gap-2">
+                <button className="px-3 py-1 bg-secondary text-on-secondary rounded-full font-headline text-label-sm disabled:opacity-50" onClick={saveEdit} disabled={busy} type="button">Enregistrer</button>
+                <button className="px-3 py-1 bg-surface-container text-on-surface-variant rounded-full font-headline text-label-sm" onClick={() => { setEditing(false); setEditBody(comment.body); }} type="button">Annuler</button>
+              </div>
+            </div>
+          ) : (
+            <p className="whitespace-pre-wrap font-body text-body-sm text-on-surface-variant">{comment.body}</p>
+          )}
+          {canInteract && !editing && (
+            <div className="flex items-center gap-3 pt-1 text-[12px] font-headline text-label-sm text-outline">
+              <button
+                onClick={async () => { await likeComment(comment.id); onChanged(); }}
+                className={`inline-flex items-center gap-1 ${comment.liked ? 'text-secondary font-bold' : 'hover:text-secondary'}`}
+                type="button"
+              >
+                <span className={`material-symbols-outlined text-[15px] ${comment.liked ? 'filled' : ''}`}>thumb_up</span> Aimer ({comment.likes})
               </button>
-            )}
-            {peutModerer && (
-              <>
-                <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1 text-slate-500 hover:text-ville-600">
-                  <Pencil size={13} aria-hidden /> Éditer
-                </button>
-                <button onClick={remove} className="inline-flex items-center gap-1 text-slate-500 hover:text-red-600">
-                  <Trash2 size={13} aria-hidden /> Supprimer
-                </button>
-              </>
-            )}
-          </div>
-        )}
-        {replying && (
-          <div className="mt-2 space-y-2">
-            <Textarea rows={2} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Votre réponse…" />
-            <Button onClick={submitReply} disabled={busy}><Send size={14} /> Envoyer</Button>
-          </div>
-        )}
+              {!comment.parent_id && !isReply && (
+                <button onClick={() => setReplying((v) => !v)} className="hover:text-secondary" type="button">Répondre</button>
+              )}
+              {peutModerer && (
+                <>
+                  <button onClick={() => setEditing(true)} className="hover:text-primary" type="button">Éditer</button>
+                  <button onClick={remove} className="hover:text-error" type="button">Supprimer</button>
+                </>
+              )}
+            </div>
+          )}
+          {replying && (
+            <div className="flex items-center gap-2 pt-2">
+              <input
+                className="flex-1 pl-3 pr-3 py-2 bg-surface-container-low rounded-full font-body text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-secondary/20"
+                placeholder="Votre réponse…" value={body} onChange={(e) => setBody(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submitReply()}
+              />
+              <button className="p-1.5 text-secondary hover:text-secondary-container disabled:opacity-50" onClick={submitReply} disabled={busy || !body.trim()} aria-label="Envoyer" type="button">
+                <span className="material-symbols-outlined text-[20px]">send</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       {comment.replies?.length > 0 && (
-        <div className="ml-6 space-y-2 border-l-2 border-slate-100 pl-4">
+        <div className="ml-6 sm:ml-10 space-y-2">
           {comment.replies.map((r) => <CommentItem key={r.id} comment={r} onChanged={onChanged} isReply />)}
         </div>
       )}
@@ -96,7 +109,7 @@ function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment
 }
 
 export default function CommentThread({ entityType, entityId }: { entityType: string; entityId: number }) {
-  const { canInteract } = useAuth();
+  const { canInteract, user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
@@ -122,20 +135,35 @@ export default function CommentThread({ entityType, entityId }: { entityType: st
   }
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Discussion</h3>
-      {error && <Alert kind="error">{error}</Alert>}
+    <div className="space-y-3">
+      <h3 className="font-headline text-headline-sm text-primary flex items-center gap-2">
+        <span className="material-symbols-outlined text-[18px]">forum</span>
+        Échanges &amp; retours d'expérience
+      </h3>
+      {error && <StitchAlert kind="error">{error}</StitchAlert>}
+      {loading ? <StitchSpinner />
+        : comments.length === 0 ? <StitchEmpty icon="forum">Aucun commentaire pour l'instant.</StitchEmpty>
+        : <div className="space-y-3 bg-surface-container-low/50 p-3 rounded-xl">{comments.map((c) => <CommentItem key={c.id} comment={c} onChanged={load} />)}</div>}
       {canInteract ? (
-        <div className="space-y-2">
-          <Textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Participez à la discussion…" />
-          <Button onClick={submit} disabled={busy}><Send size={14} /> Publier</Button>
+        <div className="flex items-center gap-2">
+          <Avatar name={user?.display_name} size={28} />
+          <div className="relative flex-1">
+            <input
+              className="w-full pl-3 pr-9 py-2 bg-surface-container-lowest rounded-full font-body text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-secondary/20 shadow-sm"
+              placeholder="Ajouter une observation bienveillante…" value={body} onChange={(e) => setBody(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
+            />
+            <button
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-secondary hover:text-secondary-container disabled:opacity-50"
+              onClick={submit} disabled={busy || !body.trim()} aria-label="Publier" type="button"
+            >
+              <span className="material-symbols-outlined text-[20px]">send</span>
+            </button>
+          </div>
         </div>
       ) : (
-        <p className="text-sm text-slate-500">Seuls les IAmbassadeurs et assimilés peuvent commenter. Vous êtes en lecture seule.</p>
+        <p className="font-body text-body-sm text-on-surface-variant">Seuls les IAmbassadeurs et assimilés peuvent commenter. Vous êtes en lecture seule.</p>
       )}
-      {loading ? <div className="flex justify-center py-4"><Spinner /></div>
-        : comments.length === 0 ? <EmptyState>Aucun commentaire pour l’instant.</EmptyState>
-        : <div className="space-y-3">{comments.map((c) => <CommentItem key={c.id} comment={c} onChanged={load} />)}</div>}
     </div>
   );
 }

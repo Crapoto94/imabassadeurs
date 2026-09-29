@@ -1,7 +1,10 @@
 import { ReactNode } from 'react';
 
+// Bibliothèque historique, restylée sur le thème « Ivry IA Citoyenne » (Stitch).
+// Même API publique : les pages existantes héritent du nouveau thème sans changement.
+
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${className}`}>{children}</div>;
+  return <div className={`bg-surface-container-lowest rounded-2xl shadow-card ${className}`}>{children}</div>;
 }
 
 export function Button({
@@ -11,15 +14,15 @@ export function Button({
   disabled?: boolean; className?: string;
 }) {
   const variants: Record<string, string> = {
-    primary: 'bg-ville-500 hover:bg-ville-600 text-white',
-    secondary: 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300',
-    danger: 'bg-red-600 hover:bg-red-700 text-white',
-    ghost: 'bg-transparent hover:bg-slate-100 text-ville-600',
+    primary: 'bg-secondary hover:bg-secondary-container text-on-secondary shadow-sm',
+    secondary: 'bg-surface-container hover:bg-surface-container-high text-on-surface',
+    danger: 'bg-error hover:brightness-110 text-on-error',
+    ghost: 'bg-transparent hover:bg-surface-container-low text-secondary',
   };
   return (
     <button
       type={type} onClick={onClick} disabled={disabled}
-      className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${className}`}
+      className={`inline-flex items-center gap-2 rounded-full px-4 py-2 font-headline text-label-md transition disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${className}`}
     >
       {children}
     </button>
@@ -28,27 +31,27 @@ export function Button({
 
 export function Badge({ children, color = 'slate' }: { children: ReactNode; color?: string }) {
   const colors: Record<string, string> = {
-    slate: 'bg-slate-100 text-slate-700',
-    green: 'bg-emerald-100 text-emerald-800',
-    amber: 'bg-amber-100 text-amber-800',
-    red: 'bg-red-100 text-red-800',
-    blue: 'bg-blue-100 text-blue-800',
-    purple: 'bg-purple-100 text-purple-800',
+    slate: 'bg-surface-container text-on-surface-variant',
+    green: 'bg-tertiary-fixed text-on-tertiary-fixed',
+    amber: 'bg-secondary-fixed text-on-secondary-fixed-variant',
+    red: 'bg-error-container text-on-error-container',
+    blue: 'bg-primary-fixed text-on-primary-fixed-variant',
+    purple: 'bg-secondary-fixed text-on-secondary-fixed-variant',
   };
-  return <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[color] || colors.slate}`}>{children}</span>;
+  return <span className={`inline-block rounded-full px-2.5 py-0.5 font-headline text-label-sm ${colors[color] || colors.slate}`}>{children}</span>;
 }
 
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
-    <label className="block space-y-1">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+    <label className="block space-y-1.5">
+      <span className="block font-headline text-label-sm text-on-surface-variant uppercase tracking-wider">{label}</span>
       {children}
-      {hint && <span className="block text-xs text-slate-500">{hint}</span>}
+      {hint && <span className="block font-body text-body-sm text-outline">{hint}</span>}
     </label>
   );
 }
 
-const inputCls = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-ville-500 focus:outline-none';
+const inputCls = 'w-full rounded-lg bg-surface-container-low px-3.5 py-2.5 font-body text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-secondary/20 transition-all';
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputCls} ${props.className || ''}`} />;
@@ -62,27 +65,27 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 
 export function Alert({ kind = 'info', children }: { kind?: 'info' | 'error' | 'success'; children: ReactNode }) {
   const kinds = {
-    info: 'bg-blue-50 text-blue-800 border-blue-200',
-    error: 'bg-red-50 text-red-800 border-red-200',
-    success: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+    info: 'bg-secondary-fixed/40 text-on-secondary-fixed-variant border border-secondary-fixed',
+    error: 'bg-error-container text-on-error-container border border-error/20',
+    success: 'bg-tertiary-fixed/50 text-on-tertiary-fixed-variant border border-tertiary-fixed-dim/40',
   };
-  return <div className={`rounded-lg border px-4 py-3 text-sm ${kinds[kind]}`}>{children}</div>;
+  return <div className={`rounded-xl border px-4 py-3 font-body text-body-md ${kinds[kind]}`}>{children}</div>;
 }
 
 export function Spinner() {
-  return <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-ville-500" role="status" aria-label="Chargement" />;
+  return <div className="h-6 w-6 animate-spin rounded-full border-[3px] border-surface-container-high border-t-secondary" role="status" aria-label="Chargement" />;
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
-  return <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">{children}</div>;
+  return <div className="rounded-2xl bg-surface-container-lowest border border-dashed border-outline-variant p-8 text-center font-body text-body-md text-on-surface-variant">{children}</div>;
 }
 
 export function PageTitle({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+        <h1 className="font-headline text-headline-lg-mobile lg:text-headline-lg text-primary tracking-tight">{title}</h1>
+        {subtitle && <p className="mt-1 font-body text-body-md text-on-surface-variant">{subtitle}</p>}
       </div>
       {action}
     </div>

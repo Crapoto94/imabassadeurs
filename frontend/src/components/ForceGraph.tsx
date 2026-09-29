@@ -83,7 +83,7 @@ export default function ForceGraph({
     <div className="relative">
       <svg
         viewBox="0 0 900 600"
-        className="w-full rounded-lg border border-slate-200 bg-white"
+        className="w-full rounded-xl bg-surface-container-low/50"
         style={{ height: 520, touchAction: 'none' }}
         role="img"
         aria-label={`Graphe de connaissances : ${nodes.length} éléments`}
@@ -136,7 +136,7 @@ export default function ForceGraph({
         <button onClick={() => setScale((s) => Math.max(0.4, s - 0.2))} className="rounded bg-white px-2 py-1 text-sm shadow" aria-label="Dézoomer">−</button>
         <button onClick={() => { setScale(1); setTx(0); setTy(0); }} className="rounded bg-white px-2 py-1 text-sm shadow" aria-label="Réinitialiser la vue">⟳</button>
       </div>
-      <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-600" aria-label="Légende">
+      <div className="mt-2 flex flex-wrap gap-3 font-body text-body-sm text-on-surface-variant" aria-label="Légende">
         {Object.entries(TYPE_STYLE).map(([type, style]) => (
           <span key={type} className="inline-flex items-center gap-1">
             <svg width="14" height="14" viewBox="-8 -8 16 16" aria-hidden>
