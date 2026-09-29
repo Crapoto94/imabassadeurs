@@ -19,7 +19,11 @@ function assertKey() {
 }
 
 async function authentifierAgent(username, password) {
-  assertKey();
+  // Clé absente : ne pas lever d'exception ici, sinon le repli local
+  // (LOCAL_LOGIN_ENABLED / hors production) de auth.login devient inatteignable.
+  if (!APM_KEY) {
+    return { success: false, error: 'APM non configuré (APM_API_KEY absente)' };
+  }
   try {
     const { data } = await http.post('/api/v1/ad/authenticate', { username, password });
     return { success: true, ...data };
