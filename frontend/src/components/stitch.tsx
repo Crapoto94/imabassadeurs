@@ -15,6 +15,17 @@ export function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
+// Mention discrète « modifié » + date, affichée uniquement si une édition a eu lieu.
+export function EditedAt({ editedAt }: { editedAt?: string | null }) {
+  if (!editedAt) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-outline" title={`Modifié le ${new Date(editedAt).toLocaleString('fr-FR')}`}>
+      <span className="material-symbols-outlined text-[13px]">edit</span>
+      <span>modifié {timeAgo(editedAt)}</span>
+    </span>
+  );
+}
+
 export function Avatar({ name, size = 40, className = '' }: { name?: string | null; size?: number; className?: string }) {
   const initials = (name || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
   return (
@@ -114,10 +125,12 @@ export function Modal({ open, onClose, title, icon, children }: {
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-on-surface/50 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-on-surface/50 backdrop-blur-sm"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div
         className="bg-surface-container-lowest rounded-3xl w-full max-w-xl p-6 shadow-modal space-y-4 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-label={title}
       >
         <div className="flex items-center justify-between pb-2">
@@ -173,12 +186,12 @@ export function StitchAlert({ kind = 'info', children }: { kind?: 'info' | 'erro
   return <div className={`rounded-xl px-4 py-3 font-body text-body-md ${kinds[kind]}`}>{children}</div>;
 }
 
-export function PrimaryButton({ children, onClick, disabled, icon, className = '' }: {
-  children: ReactNode; onClick?: () => void; disabled?: boolean; icon?: string; className?: string;
+export function PrimaryButton({ children, onClick, disabled, icon, className = '', type = 'button' }: {
+  children: ReactNode; onClick?: () => void; disabled?: boolean; icon?: string; className?: string; type?: 'button' | 'submit';
 }) {
   return (
     <button
-      type="button" onClick={onClick} disabled={disabled}
+      type={type} onClick={onClick} disabled={disabled}
       className={`inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-secondary hover:bg-secondary-container text-on-secondary rounded-full font-headline text-label-md shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
     >
       {icon && <span className="material-symbols-outlined text-[18px]">{icon}</span>}
@@ -187,12 +200,12 @@ export function PrimaryButton({ children, onClick, disabled, icon, className = '
   );
 }
 
-export function GhostButton({ children, onClick, disabled, icon, className = '' }: {
-  children: ReactNode; onClick?: () => void; disabled?: boolean; icon?: string; className?: string;
+export function GhostButton({ children, onClick, disabled, icon, className = '', type = 'button' }: {
+  children: ReactNode; onClick?: () => void; disabled?: boolean; icon?: string; className?: string; type?: 'button' | 'submit';
 }) {
   return (
     <button
-      type="button" onClick={onClick} disabled={disabled}
+      type={type} onClick={onClick} disabled={disabled}
       className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-on-surface-variant hover:bg-surface-container font-headline text-label-md transition-colors disabled:opacity-50 ${className}`}
     >
       {icon && <span className="material-symbols-outlined text-[18px]">{icon}</span>}

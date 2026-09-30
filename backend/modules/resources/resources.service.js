@@ -139,7 +139,7 @@ async function update(user, id, data) {
   const { title, description, url } = data;
   if (!title || !description) throw Object.assign(new Error('Titre et description requis'), { status: 400 });
   await db.run(
-    `UPDATE ${SCHEMA}.resources SET title=$2, description=$3, url=$4 WHERE id=$1`,
+    `UPDATE ${SCHEMA}.resources SET title=$2, description=$3, url=$4, edited_at=now() WHERE id=$1`,
     [id, title, description, r.kind === 'link' ? (url || null) : null]
   );
   await logAction(user.id, 'resource_update', 'resource', id, null);

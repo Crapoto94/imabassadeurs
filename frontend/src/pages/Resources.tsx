@@ -4,6 +4,7 @@ import Pagination from '../components/Pagination';
 import CommentThread from '../components/CommentThread';
 import AiPanel from '../components/AiPanel';
 import StarRating from '../components/StarRating';
+import VideoEmbed, { detectVideo } from '../components/VideoEmbed';
 import { createResource, getResources, rateResource, synthResource, synthResourceThread } from '../api/endpoints';
 import { errMsg, API_URL } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
@@ -27,6 +28,7 @@ function ResourceCard({ res, onChanged }: { res: Resource; onChanged: () => void
   }
 
   const downloadHref = res.kind === 'pdf' && res.file_path ? `${API_URL}/uploads/${res.file_path}` : res.url || undefined;
+  const isVideo = res.kind === 'link' && !!res.url && !!detectVideo(res.url);
 
   return (
     <article className="bg-surface-container-lowest rounded-2xl p-6 shadow-card hover:shadow-card-hover transition-shadow flex flex-col gap-4">
@@ -42,12 +44,14 @@ function ResourceCard({ res, onChanged }: { res: Resource; onChanged: () => void
           </div>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1 bg-surface-container text-on-surface-variant rounded-lg font-headline text-label-sm shrink-0">
-          <span className={`material-symbols-outlined text-[18px] ${res.kind === 'pdf' ? 'text-error' : 'text-secondary'}`}>
-            {res.kind === 'pdf' ? 'picture_as_pdf' : 'open_in_new'}
+          <span className={`material-symbols-outlined text-[18px] ${res.kind === 'pdf' ? 'text-error' : isVideo ? 'text-tertiary' : 'text-secondary'}`}>
+            {res.kind === 'pdf' ? 'picture_as_pdf' : isVideo ? 'play_circle' : 'open_in_new'}
           </span>
-          <span>{res.kind === 'pdf' ? 'PDF' : 'Lien externe vérifié'}</span>
+          <span>{res.kind === 'pdf' ? 'PDF' : isVideo ? 'Vidéo' : 'Lien externe vérifié'}</span>
         </div>
       </div>
+
+      {isVideo && res.url && <VideoEmbed url={res.url} />}
 
       <div>
         <h2 className="font-headline text-headline-md text-primary font-bold hover:text-secondary transition-colors">
@@ -207,7 +211,7 @@ function CreateResourceModal({ open, onClose, onDone }: { open: boolean; onClose
           <button type="button" onClick={onClose} className="px-5 py-2 rounded-full font-headline text-label-md text-on-surface-variant hover:bg-surface-container transition-all">
             Annuler
           </button>
-          <PrimaryButton icon="send" disabled={busy}>{busy ? 'Envoi…' : 'Transmettre pour modération'}</PrimaryButton>
+          <PrimaryButton type="submit" icon="send" disabled={busy}>{busy ? 'Envoi…' : 'Transmettre pour modération'}</PrimaryButton>
         </div>
       </form>
     </Modal>

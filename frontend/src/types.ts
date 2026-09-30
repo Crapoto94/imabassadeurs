@@ -26,6 +26,7 @@ export interface Resource {
   comments_count: number;
   my_rating?: number | null;
   created_at: string;
+  edited_at?: string | null;
 }
 
 export interface Experiment {
@@ -42,6 +43,7 @@ export interface Experiment {
   comments_count: number;
   created_at: string;
   participants?: { id: number; display_name: string }[];
+  edited_at?: string | null;
 }
 
 export interface Risk {
@@ -57,6 +59,7 @@ export interface Risk {
   comments_count: number;
   created_at: string;
   amendments?: { id: number; importance: number; probability: number; amended_by_name: string; reason: string | null; created_at: string }[];
+  edited_at?: string | null;
 }
 
 export interface VoteOption {
@@ -92,6 +95,7 @@ export interface Comment {
   liked: boolean;
   created_at: string;
   replies: Comment[];
+  edited_at?: string | null;
 }
 
 export interface Principle {

@@ -7,6 +7,7 @@ import CommentThread from '../components/CommentThread';
 import { deleteExperiment, getExperiment, joinExperiment, synthExperiment, updateExperiment, updateExperimentStatus } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { EditedAt } from '../components/stitch';
 import type { Experiment } from '../types';
 
 const STATUS: Record<string, { label: string; color: string }> = {
@@ -51,7 +52,7 @@ export default function ExperimentDetail() {
   }
 
   return (
-    <div>
+    <div className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-8">
       <Link to="/experimentations" className="mb-4 inline-flex items-center gap-1 text-sm text-ville-600 hover:underline"><ArrowLeft size={16} /> Retour</Link>
       <PageTitle title={e.title} subtitle={`Créée par ${e.created_by_name}`}
         action={
@@ -84,6 +85,9 @@ export default function ExperimentDetail() {
         <Card className="mb-6 space-y-4 p-5">
           <div><div className="text-sm font-medium text-slate-500">Quoi</div><p className="whitespace-pre-wrap text-slate-800">{e.description}</p></div>
           <div><div className="text-sm font-medium text-slate-500">Pourquoi</div><p className="whitespace-pre-wrap text-slate-800">{e.objective}</p></div>
+          <div className="flex items-center gap-3 text-xs text-slate-400">
+            <EditedAt editedAt={e.edited_at} />
+          </div>
           {e.target_date && <div className="text-sm text-slate-600">Pour quand : {new Date(e.target_date).toLocaleDateString('fr-FR')}</div>}
           <div>
             <div className="mb-1 flex items-center gap-1 text-sm font-medium text-slate-500"><Users size={15} /> Participants ({e.participants?.length || 0})</div>

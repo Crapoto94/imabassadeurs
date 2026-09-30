@@ -384,7 +384,7 @@ function SettingsTab() {
           />
         </StitchField>
         {error && <StitchAlert kind="error">{error}</StitchAlert>}
-        <PrimaryButton icon="save">Enregistrer</PrimaryButton>
+        <PrimaryButton type="submit" icon="save">Enregistrer</PrimaryButton>
       </form>
     </SectionCard>
   );

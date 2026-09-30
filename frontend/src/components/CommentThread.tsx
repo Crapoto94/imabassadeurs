@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { addComment, deleteComment, getComments, likeComment, updateComment } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
-import { Avatar, StitchAlert, StitchEmpty, StitchSpinner, timeAgo } from './stitch';
+import { Avatar, EditedAt, StitchAlert, StitchEmpty, StitchSpinner, timeAgo } from './stitch';
 import type { Comment } from '../types';
 
 function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment; onChanged: () => void; isReply?: boolean }) {
@@ -49,7 +49,10 @@ function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment
                 <span className="px-1.5 py-0.5 bg-tertiary-fixed text-on-tertiary-fixed text-[10px] rounded font-headline font-bold">Moi</span>
               )}
             </div>
-            <span className="font-body text-body-sm text-outline text-[11px]">{timeAgo(comment.created_at)}</span>
+            <div className="flex items-center gap-2">
+              <span className="font-body text-body-sm text-outline text-[11px]">{timeAgo(comment.created_at)}</span>
+              {comment.edited_at && <EditedAt editedAt={comment.edited_at} />}
+            </div>
           </div>
           {editing ? (
             <div className="space-y-2 pt-1">

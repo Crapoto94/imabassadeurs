@@ -198,7 +198,7 @@ function CreateExperimentModal({ open, onClose, onDone }: { open: boolean; onClo
           <button type="button" onClick={onClose} className="px-5 py-2 rounded-full font-headline text-label-md text-on-surface-variant hover:bg-surface-container transition-all">
             Annuler
           </button>
-          <PrimaryButton disabled={busy || !consent}>{busy ? 'Envoi…' : 'Soumettre la fiche projet'}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={busy}>{busy ? 'Envoi…' : 'Soumettre la fiche projet'}</PrimaryButton>
         </div>
       </form>
     </Modal>

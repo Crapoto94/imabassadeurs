@@ -244,7 +244,7 @@ function CreateVoteModal({ open, onClose, onDone }: { open: boolean; onClose: ()
           <button type="button" onClick={onClose} className="px-5 py-2 rounded-full font-headline text-label-md text-on-surface-variant hover:bg-surface-container transition-all">
             Annuler
           </button>
-          <PrimaryButton icon="how_to_vote" disabled={busy}>{busy ? 'Création…' : 'Créer la session'}</PrimaryButton>
+          <PrimaryButton type="submit" icon="how_to_vote" disabled={busy}>{busy ? 'Création…' : 'Créer la session'}</PrimaryButton>
         </div>
       </form>
     </Modal>

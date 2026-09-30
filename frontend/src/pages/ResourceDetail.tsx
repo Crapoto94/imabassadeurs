@@ -5,9 +5,11 @@ import { Card, PageTitle, Spinner, Alert, Badge, Button, Textarea, Input, Field 
 import StarRating from '../components/StarRating';
 import AiPanel from '../components/AiPanel';
 import CommentThread from '../components/CommentThread';
+import VideoEmbed, { detectVideo } from '../components/VideoEmbed';
 import { deleteResource, getResource, rateResource, reviewResource, synthResource, synthResourceThread, updateResource } from '../api/endpoints';
 import { API_URL, errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { EditedAt } from '../components/stitch';
 import type { Resource } from '../types';
 
 export default function ResourceDetail() {
@@ -47,7 +49,7 @@ export default function ResourceDetail() {
   }
 
   return (
-    <div>
+    <div className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-8">
       <Link to="/ressources" className="mb-4 inline-flex items-center gap-1 text-sm text-ville-600 hover:underline"><ArrowLeft size={16} /> Retour</Link>
       <PageTitle
         title={r.title}
@@ -74,6 +76,10 @@ export default function ResourceDetail() {
       ) : (
         <Card className="mb-6 space-y-4 p-5">
           <p className="whitespace-pre-wrap text-slate-700">{r.description}</p>
+          {r.kind === 'link' && r.url && detectVideo(r.url) && <VideoEmbed url={r.url} />}
+          <div className="flex items-center gap-3 text-xs text-slate-400">
+            <EditedAt editedAt={r.edited_at} />
+          </div>
           {r.kind === 'pdf' && r.file_path && (
             <a href={`${API_URL}/uploads/${r.file_path}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-ville-600 hover:underline">
               <FileText size={16} /> Ouvrir le document PDF

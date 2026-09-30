@@ -99,7 +99,7 @@ async function update(user, id, data) {
   }
   await db.run(
     `UPDATE ${SCHEMA}.experiments
-        SET title=$2, description=$3, objective=$4, target_date=$5, status=COALESCE($6, status)
+        SET title=$2, description=$3, objective=$4, target_date=$5, status=COALESCE($6, status), edited_at=now()
       WHERE id=$1`,
     [id, title, description, objective, target_date || null, status || null]
   );

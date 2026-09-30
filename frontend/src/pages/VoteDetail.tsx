@@ -41,7 +41,7 @@ export default function VoteDetail() {
   }
 
   return (
-    <div>
+    <div className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-8">
       <Link to="/votes" className="mb-4 inline-flex items-center gap-1 text-sm text-ville-600 hover:underline"><ArrowLeft size={16} /> Retour</Link>
       <PageTitle title={s.question} subtitle={`Session ${s.mode === 'open' ? 'libre' : 'fermée'} · créée par ${s.created_by_name}`}
         action={

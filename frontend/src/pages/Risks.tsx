@@ -187,7 +187,7 @@ function DeclareRiskModal({ open, onClose, onDone }: { open: boolean; onClose: (
           <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-full hover:bg-surface-container text-on-surface-variant font-headline text-label-md transition-colors">
             Annuler
           </button>
-          <PrimaryButton disabled={busy} className="py-2.5 px-6">{busy ? 'Envoi…' : 'Soumettre au collège des IAmbassadeurs'}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={busy} className="py-2.5 px-6">{busy ? 'Envoi…' : 'Soumettre au collège des IAmbassadeurs'}</PrimaryButton>
         </div>
       </form>
     </Modal>

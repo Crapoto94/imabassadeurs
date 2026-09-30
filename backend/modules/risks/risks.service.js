@@ -92,25 +92,38 @@ async function synthesize(user, id) {
   });
 }
 
-// Édition : admin/IAnimateur. Un changement d'importance/probabilité est tracé
-// dans risk_amendments (conservation de l'historique).
+// Édition : l'auteur peut corriger titre/description (coquille) ; admin/IAnimateur
+// peuvent tout modifier. Un changement d'importance/probabilité est tracé dans
+// risk_amendments (conservation de l'historique).
 async function update(user, id, data) {
-  if (!estModerateur(user)) throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
+  const isMod = estModerateur(user);
   const r = await getById(id);
+  if (!isMod && r.proposed_by !== user.id) {
+    throw Object.assign(new Error('Droits insuffisants'), { status: 403 });
+  }
   const { title, description, concerns_ivry, importance, probability, reason } = data;
   if (!title || !description) throw Object.assign(new Error('Titre et description requis'), { status: 400 });
-  const imp = importance != null ? parseInt(importance, 10) : r.importance;
-  const prob = probability != null ? parseInt(probability, 10) : r.probability;
-  if (!(imp >= 1 && imp <= 4) || !(prob >= 1 && prob <= 4)) throw Object.assign(new Error('Valeurs entre 1 et 4'), { status: 400 });
-  await db.run(
-    `UPDATE ${SCHEMA}.risks SET title=$2, description=$3, concerns_ivry=$4, importance=$5, probability=$6 WHERE id=$1`,
-    [id, title, description, concerns_ivry !== false, imp, prob]
-  );
-  if (imp !== r.importance || prob !== r.probability) {
+
+  if (isMod) {
+    const imp = importance != null ? parseInt(importance, 10) : r.importance;
+    const prob = probability != null ? parseInt(probability, 10) : r.probability;
+    if (!(imp >= 1 && imp <= 4) || !(prob >= 1 && prob <= 4)) throw Object.assign(new Error('Valeurs entre 1 et 4'), { status: 400 });
     await db.run(
-      `INSERT INTO ${SCHEMA}.risk_amendments (risk_id, importance, probability, amended_by, reason)
-       VALUES ($1,$2,$3,$4,$5)`,
-      [id, imp, prob, user.id, reason || 'Modification par modération']
+      `UPDATE ${SCHEMA}.risks SET title=$2, description=$3, concerns_ivry=$4, importance=$5, probability=$6, edited_at=now() WHERE id=$1`,
+      [id, title, description, concerns_ivry !== false, imp, prob]
+    );
+    if (imp !== r.importance || prob !== r.probability) {
+      await db.run(
+        `INSERT INTO ${SCHEMA}.risk_amendments (risk_id, importance, probability, amended_by, reason)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [id, imp, prob, user.id, reason || 'Modification par modération']
+      );
+    }
+  } else {
+    // Auteur : correction de coquille uniquement (titre/description).
+    await db.run(
+      `UPDATE ${SCHEMA}.risks SET title=$2, description=$3, edited_at=now() WHERE id=$1`,
+      [id, title, description]
     );
   }
   await logAction(user.id, 'risk_update', 'risk', id, null);

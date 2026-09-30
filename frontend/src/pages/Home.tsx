@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { castVote, getExperiments, getPrinciples, getResources, getRisks, getStats, getVotes, joinExperiment } from '../api/endpoints';
 import { useAuth } from '../hooks/useAuth';
 import CommentThread from '../components/CommentThread';
+import VideoEmbed, { detectVideo } from '../components/VideoEmbed';
 import {
   Avatar, Modal, ProgressBar, RoleBadge, SectionCard, StitchSpinner, timeAgo, useToast,
 } from '../components/stitch';
@@ -246,6 +247,7 @@ function RiskCard({ risk }: { risk: Risk }) {
 
 function ResourceCard({ res }: { res: Resource }) {
   const [open, setOpen] = useState(false);
+  const isVideo = res.kind === 'link' && !!res.url && !!detectVideo(res.url);
   return (
     <SectionCard className="p-5 space-y-4 hover:shadow-card-hover transition-shadow">
       <div className="flex items-start justify-between">
@@ -258,8 +260,8 @@ function ResourceCard({ res }: { res: Resource }) {
               <span className="font-body text-body-sm text-outline">{timeAgo(res.created_at)}</span>
             </div>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 mt-1 rounded-full bg-primary/10 text-primary font-headline text-label-sm">
-              <span className="material-symbols-outlined text-[14px]">{res.kind === 'pdf' ? 'picture_as_pdf' : 'link'}</span>
-              <span>{res.kind === 'pdf' ? 'Document PDF' : 'Ressource en ligne'}</span>
+              <span className="material-symbols-outlined text-[14px]">{res.kind === 'pdf' ? 'picture_as_pdf' : isVideo ? 'play_circle' : 'link'}</span>
+              <span>{res.kind === 'pdf' ? 'Document PDF' : isVideo ? 'Vidéo' : 'Ressource en ligne'}</span>
             </span>
           </div>
         </div>
@@ -270,6 +272,7 @@ function ResourceCard({ res }: { res: Resource }) {
         </h4>
         <p className="font-body text-body-md text-on-surface-variant line-clamp-3">{res.description}</p>
       </div>
+      {isVideo && res.url && <VideoEmbed url={res.url} />}
       <div className="flex items-center justify-between text-outline font-body text-body-sm pt-1">
         <span className="flex items-center gap-1 text-on-surface-variant font-medium">
           <span className="material-symbols-outlined text-[16px] text-secondary filled">star</span>

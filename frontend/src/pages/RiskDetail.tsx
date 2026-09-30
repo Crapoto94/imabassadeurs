@@ -7,13 +7,14 @@ import CommentThread from '../components/CommentThread';
 import { amendRisk, deleteRisk, getRisk, synthRisk, updateRisk } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { EditedAt } from '../components/stitch';
 import type { Risk } from '../types';
 
 export default function RiskDetail() {
   const { id } = useParams();
   const rid = Number(id);
   const navigate = useNavigate();
-  const { isIanimateur } = useAuth();
+  const { isIanimateur, user } = useAuth();
   const [r, setR] = useState<Risk | null>(null);
   const [error, setError] = useState('');
   const [importance, setImportance] = useState(1);
@@ -35,7 +36,13 @@ export default function RiskDetail() {
   if (!r) return <div className="flex justify-center py-12"><Spinner /></div>;
 
   async function save() {
-    try { await updateRisk(rid, form); setEditing(false); load(); }
+    try {
+      const payload: any = { title: form.title, description: form.description };
+      if (isIanimateur) payload.reason = form.reason;
+      if (isIanimateur) { payload.concerns_ivry = form.concerns_ivry; payload.importance = form.importance; payload.probability = form.probability; }
+      await updateRisk(rid, payload);
+      setEditing(false); load();
+    }
     catch (e) { setError(errMsg(e)); }
   }
   async function remove() {
@@ -45,14 +52,14 @@ export default function RiskDetail() {
   }
 
   return (
-    <div>
+    <div className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-8">
       <Link to="/risques" className="mb-4 inline-flex items-center gap-1 text-sm text-ville-600 hover:underline"><ArrowLeft size={16} /> Retour</Link>
       <PageTitle title={r.title} subtitle={`Proposé par ${r.proposed_by_name}`}
         action={
           <div className="flex items-center gap-2">
             <Badge color="red">Importance {r.importance}/4</Badge>
             <Badge color="amber">Probabilité {r.probability}/4</Badge>
-            {isIanimateur && !editing && <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} /> Éditer</Button>}
+            {(isIanimateur || r.proposed_by === user?.id) && !editing && <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} /> Éditer</Button>}
             {isIanimateur && <Button variant="danger" onClick={remove}><Trash2 size={16} /> Supprimer</Button>}
           </div>
         } />
@@ -61,16 +68,18 @@ export default function RiskDetail() {
         <Card className="mb-6 space-y-3 p-5">
           <Field label="Titre"><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
           <Field label="Description"><Textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Concerne Ivry">
-              <Select value={form.concerns_ivry ? 'true' : 'false'} onChange={(e) => setForm({ ...form, concerns_ivry: e.target.value === 'true' })}>
-                <option value="true">Oui</option><option value="false">Non</option>
-              </Select>
-            </Field>
-            <Field label="Importance"><Select value={form.importance} onChange={(e) => setForm({ ...form, importance: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}★</option>)}</Select></Field>
-            <Field label="Probabilité"><Select value={form.probability} onChange={(e) => setForm({ ...form, probability: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}★</option>)}</Select></Field>
-          </div>
-          <Field label="Motif (si importance/probabilité modifiées)"><Input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></Field>
+          {isIanimateur && (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Concerne Ivry">
+                <Select value={form.concerns_ivry ? 'true' : 'false'} onChange={(e) => setForm({ ...form, concerns_ivry: e.target.value === 'true' })}>
+                  <option value="true">Oui</option><option value="false">Non</option>
+                </Select>
+              </Field>
+              <Field label="Importance"><Select value={form.importance} onChange={(e) => setForm({ ...form, importance: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}★</option>)}</Select></Field>
+              <Field label="Probabilité"><Select value={form.probability} onChange={(e) => setForm({ ...form, probability: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}★</option>)}</Select></Field>
+            </div>
+          )}
+          {isIanimateur && <Field label="Motif (si importance/probabilité modifiées)"><Input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></Field>}
           <div className="flex gap-2">
             <Button onClick={save}><Save size={16} /> Enregistrer</Button>
             <Button variant="secondary" onClick={() => setEditing(false)}>Annuler</Button>
@@ -78,7 +87,10 @@ export default function RiskDetail() {
         </Card>
       ) : (
         <Card className="mb-6 p-5"><p className="whitespace-pre-wrap text-slate-700">{r.description}</p>
-          {!r.concerns_ivry && <p className="mt-2 text-sm text-slate-500">Ce risque ne concerne pas directement Ivry.</p>}
+          <div className="mt-3 flex items-center gap-3 text-xs text-slate-400">
+            {!r.concerns_ivry && <span>Ce risque ne concerne pas directement Ivry.</span>}
+            <EditedAt editedAt={r.edited_at} />
+          </div>
         </Card>
       )}
 
