@@ -1,14 +1,14 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
-  getAiModels, getAudit, getPrompts, getSettings, getUsers, grantRole, revokeRole,
-  testPrompt, updatePrompt, updateSettings,
+  createTheme, deleteTheme, getAiModels, getAudit, getPrompts, getSettings, getThemes, getUsers,
+  grantRole, revokeRole, testPrompt, updatePrompt, updateSettings, updateTheme,
 } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import {
   Avatar, GhostButton, PrimaryButton, SectionCard, StitchAlert, StitchField, StitchInput,
   StitchSelect, StitchSpinner, StitchTextarea, useToast,
 } from '../components/stitch';
-import type { AiResult } from '../types';
+import type { AiResult, Theme, ThemeScope } from '../types';
 
 const ROLES = [
   { key: 'admin', label: 'Admin' },
@@ -17,13 +17,20 @@ const ROLES = [
   { key: 'ianimateur', label: 'IAnimateur' },
 ];
 
-type TabKey = 'users' | 'prompts' | 'settings' | 'audit';
+const SCOPE_LABELS: Record<string, string> = {
+  resource: 'Base documentaire',
+  experiment: 'Expérimentations',
+  risk: 'Risques',
+};
+
+type TabKey = 'users' | 'prompts' | 'themes' | 'settings' | 'audit';
 
 export default function Admin() {
   const [tab, setTab] = useState<TabKey>('users');
   const tabs: { key: TabKey; icon: string; label: string }[] = [
     { key: 'users', icon: 'group', label: 'Utilisateurs & Rôles' },
     { key: 'prompts', icon: 'psychology', label: 'Paramétrage Prompts IA' },
+    { key: 'themes', icon: 'sell', label: 'Thèmes' },
     { key: 'settings', icon: 'tune', label: 'Paramètres Généraux & Footer' },
     { key: 'audit', icon: 'receipt_long', label: "Journal d'Audit" },
   ];
@@ -85,6 +92,7 @@ export default function Admin() {
       <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
         {tab === 'users' && <UsersTab />}
         {tab === 'prompts' && <PromptsTab />}
+        {tab === 'themes' && <ThemesTab />}
         {tab === 'settings' && <SettingsTab />}
         {tab === 'audit' && <AuditTab />}
       </div>
@@ -435,5 +443,154 @@ function AuditTab() {
         </div>
       )}
     </SectionCard>
+  );
+}
+
+
+// ── Onglet Thèmes ──
+const THEME_SCOPES: ThemeScope[] = ['resource', 'experiment', 'risk'];
+
+function ThemesTab() {
+  const { show, Toast } = useToast();
+  const [themes, setThemes] = useState<Theme[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [drafts, setDrafts] = useState<Record<number, { label: string; group_label: string }>>({});
+  const [newLabel, setNewLabel] = useState<Record<string, string>>({});
+  const [newGroup, setNewGroup] = useState<Record<string, string>>({});
+
+  async function load() {
+    setLoading(true);
+    try {
+      const data = await getThemes({ all: true });
+      setThemes(data);
+      const d: Record<number, { label: string; group_label: string }> = {};
+      data.forEach((t) => { d[t.id] = { label: t.label, group_label: t.group_label || '' }; });
+      setDrafts(d);
+    } catch (e) { setError(errMsg(e)); } finally { setLoading(false); }
+  }
+  useEffect(() => { load(); }, []);
+
+  const scopeThemes = (scope: ThemeScope) =>
+    themes.filter((t) => t.scope === scope).sort((a, b) =>
+      (a.group_position || 0) - (b.group_position || 0) || (a.position || 0) - (b.position || 0) || a.id - b.id);
+
+  async function saveTheme(t: Theme) {
+    const d = drafts[t.id];
+    if (!d) return;
+    try { await updateTheme(t.id, { label: d.label, group_label: d.group_label || null }); show(`Thème « ${d.label} » enregistré`); load(); }
+    catch (e) { setError(errMsg(e)); }
+  }
+  async function toggleActive(t: Theme) {
+    try { await updateTheme(t.id, { active: !t.active }); load(); } catch (e) { setError(errMsg(e)); }
+  }
+  async function removeTheme(t: Theme) {
+    if (!window.confirm(`Supprimer le thème « ${t.label} » ? Il sera retiré de tous les contenus associés.`)) return;
+    try { await deleteTheme(t.id); show('Thème supprimé'); load(); } catch (e) { setError(errMsg(e)); }
+  }
+  async function addTheme(scope: ThemeScope) {
+    const label = (newLabel[scope] || '').trim();
+    if (!label) return;
+    try {
+      await createTheme({ scope, label, group_label: scope === 'experiment' ? ((newGroup[scope] || '').trim() || null) : null, position: scopeThemes(scope).length + 1 });
+      setNewLabel((s) => ({ ...s, [scope]: '' }));
+      show('Thème créé'); load();
+    } catch (e) { setError(errMsg(e)); }
+  }
+  async function move(t: Theme, dir: -1 | 1, siblings: Theme[]) {
+    const idx = siblings.findIndex((x) => x.id === t.id);
+    const j = idx + dir;
+    if (j < 0 || j >= siblings.length) return;
+    const reordered = [...siblings];
+    [reordered[idx], reordered[j]] = [reordered[j], reordered[idx]];
+    try { await Promise.all(reordered.map((x, i) => updateTheme(x.id, { position: i + 1 }))); load(); }
+    catch (e) { setError(errMsg(e)); }
+  }
+
+  function ThemeRow({ t, siblings }: { t: Theme; siblings: Theme[] }) {
+    const d = drafts[t.id] || { label: t.label, group_label: t.group_label || '' };
+    return (
+      <div className={`flex flex-wrap items-center gap-2 p-2 rounded-xl ${t.active ? 'bg-surface-container-low' : 'bg-surface-container opacity-70'}`}>
+        <div className="flex flex-col">
+          <button onClick={() => move(t, -1, siblings)} className="text-outline hover:text-primary" aria-label="Monter"><span className="material-symbols-outlined text-[16px]">keyboard_arrow_up</span></button>
+          <button onClick={() => move(t, 1, siblings)} className="text-outline hover:text-primary" aria-label="Descendre"><span className="material-symbols-outlined text-[16px]">keyboard_arrow_down</span></button>
+        </div>
+        <input
+          className="flex-1 min-w-[180px] px-3 py-1.5 bg-surface-container-lowest rounded-lg font-body text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/20"
+          value={d.label}
+          onChange={(e) => setDrafts((s) => ({ ...s, [t.id]: { ...d, label: e.target.value } }))}
+        />
+        {t.scope === 'experiment' && (
+          <input
+            className="w-44 px-3 py-1.5 bg-surface-container-lowest rounded-lg font-body text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/20"
+            value={d.group_label} placeholder="Sous-groupe"
+            onChange={(e) => setDrafts((s) => ({ ...s, [t.id]: { ...d, group_label: e.target.value } }))}
+          />
+        )}
+        <span className="font-mono text-label-sm text-outline hidden lg:inline">{t.slug}</span>
+        <label className="flex items-center gap-1 font-headline text-label-sm text-on-surface-variant cursor-pointer">
+          <input type="checkbox" className="accent-secondary w-4 h-4" checked={!!t.active} onChange={() => toggleActive(t)} /> actif
+        </label>
+        <button onClick={() => saveTheme(t)} className="px-2.5 py-1 bg-secondary text-on-secondary rounded-full font-headline text-label-sm" title="Enregistrer">Enregistrer</button>
+        <button onClick={() => removeTheme(t)} className="px-2.5 py-1 text-error hover:bg-error-container/40 rounded-full font-headline text-label-sm" title="Supprimer">Supprimer</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {Toast}
+      <SectionCard className="p-6">
+        <h2 className="font-headline text-headline-md text-primary font-bold mb-1">Groupes thématiques</h2>
+        <p className="font-body text-body-sm text-on-surface-variant">
+          Trois nomenclatures indépendantes (base documentaire, expérimentations, risques). Créez, renommez, réordonnez, activez/désactivez ou supprimez les thèmes.
+        </p>
+      </SectionCard>
+
+      {error && <StitchAlert kind="error">{error}</StitchAlert>}
+      {loading ? <StitchSpinner /> : THEME_SCOPES.map((scope) => {
+        const list = scopeThemes(scope);
+        const groups = scope === 'experiment'
+          ? [...new Set(list.map((t) => t.group_label || 'Autres'))]
+          : [null];
+        return (
+          <SectionCard key={scope} className="p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-secondary text-[20px]">sell</span>
+              <h3 className="font-headline text-headline-sm text-primary">{SCOPE_LABELS[scope]}</h3>
+              <span className="font-headline text-label-sm text-outline">({list.length} thèmes)</span>
+            </div>
+
+            {groups.map((g) => {
+              const siblings = g === null ? list : list.filter((t) => (t.group_label || 'Autres') === g);
+              return (
+                <div key={g ?? '_'} className="space-y-2">
+                  {g !== null && <div className="font-headline text-label-sm text-outline uppercase tracking-wider">{g}</div>}
+                  {siblings.map((t) => <ThemeRow key={t.id} t={t} siblings={siblings} />)}
+                  {siblings.length === 0 && <p className="font-body text-body-sm text-outline italic">Aucun thème.</p>}
+                </div>
+              );
+            })}
+
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-surface-container-low">
+              <input
+                className="flex-1 min-w-[200px] px-3 py-2 bg-surface-container-low rounded-lg font-body text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/20"
+                placeholder="Nouveau thème…" value={newLabel[scope] || ''}
+                onChange={(e) => setNewLabel((s) => ({ ...s, [scope]: e.target.value }))}
+                onKeyDown={(e) => e.key === 'Enter' && addTheme(scope)}
+              />
+              {scope === 'experiment' && (
+                <input
+                  className="w-48 px-3 py-2 bg-surface-container-low rounded-lg font-body text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/20"
+                  placeholder="Sous-groupe (facultatif)" value={newGroup[scope] || ''}
+                  onChange={(e) => setNewGroup((s) => ({ ...s, [scope]: e.target.value }))}
+                />
+              )}
+              <PrimaryButton icon="add" onClick={() => addTheme(scope)}>Ajouter</PrimaryButton>
+            </div>
+          </SectionCard>
+        );
+      })}
+    </div>
   );
 }

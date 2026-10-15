@@ -4,8 +4,10 @@ import { castVote, getExperiments, getPrinciples, getResources, getRisks, getSta
 import { useAuth } from '../hooks/useAuth';
 import CommentThread from '../components/CommentThread';
 import VideoEmbed, { detectVideo } from '../components/VideoEmbed';
+import PdfThumb from '../components/PdfThumb';
+import { API_URL } from '../api/client';
 import {
-  Avatar, Modal, ProgressBar, RoleBadge, SectionCard, StitchSpinner, timeAgo, useToast,
+  Avatar, LevelBadge, Modal, ProgressBar, RoleBadge, SectionCard, StitchSpinner, timeAgo, useToast,
 } from '../components/stitch';
 import type { Experiment, Principle, Resource, Risk, VoteSession } from '../types';
 
@@ -30,11 +32,11 @@ function ExperimentCard({ exp, onJoined }: { exp: Experiment; onJoined: () => vo
   }
 
   return (
-    <SectionCard className="p-5 space-y-4 hover:shadow-card-hover transition-shadow">
+    <SectionCard className="p-4 space-y-3 hover:shadow-card-hover transition-shadow">
       {Toast}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <Avatar name={exp.created_by_name} size={44} />
+          <Avatar name={exp.created_by_name} size={36} />
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-headline text-headline-sm text-on-surface">{exp.created_by_name}</h3>
@@ -49,10 +51,10 @@ function ExperimentCard({ exp, onJoined }: { exp: Experiment; onJoined: () => vo
         </div>
       </div>
       <div className="space-y-2">
-        <h4 className="font-headline text-headline-md text-primary">
+        <h4 className="font-headline text-headline-sm text-primary">
           <Link to={`/experimentations/${exp.id}`} className="hover:underline">{exp.title}</Link>
         </h4>
-        <p className="font-body text-body-md text-on-surface-variant line-clamp-3">{exp.description}</p>
+        <p className="font-body text-body-sm text-on-surface-variant line-clamp-2">{exp.description}</p>
       </div>
       <div className="flex items-center justify-between text-outline font-body text-body-sm pt-1">
         <span className="text-on-surface-variant font-medium">{exp.participants_count} agent(s) inscrit(s)</span>
@@ -111,7 +113,7 @@ function VoteCard({ vote, onVoted }: { vote: VoteSession; onVoted: () => void })
   }
 
   return (
-    <SectionCard className="p-5 space-y-4 hover:shadow-card-hover transition-shadow">
+    <SectionCard className="p-4 space-y-3 hover:shadow-card-hover transition-shadow">
       {Toast}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -134,7 +136,7 @@ function VoteCard({ vote, onVoted }: { vote: VoteSession; onVoted: () => void })
         </span>
       </div>
       <div className="space-y-2">
-        <h4 className="font-headline text-headline-md text-on-surface">
+        <h4 className="font-headline text-headline-sm text-on-surface">
           <Link to={`/votes/${vote.id}`} className="hover:underline">{vote.question}</Link>
         </h4>
       </div>
@@ -187,10 +189,10 @@ function VoteCard({ vote, onVoted }: { vote: VoteSession; onVoted: () => void })
 function RiskCard({ risk }: { risk: Risk }) {
   const [open, setOpen] = useState(false);
   return (
-    <SectionCard className="p-5 space-y-4 hover:shadow-card-hover transition-shadow">
+    <SectionCard className="p-4 space-y-3 hover:shadow-card-hover transition-shadow">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <Avatar name={risk.proposed_by_name} size={44} />
+          <Avatar name={risk.proposed_by_name} size={36} />
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-headline text-headline-sm text-on-surface">{risk.proposed_by_name}</h3>
@@ -215,10 +217,10 @@ function RiskCard({ risk }: { risk: Risk }) {
         </div>
       </div>
       <div className="space-y-2">
-        <h4 className="font-headline text-headline-md text-error">
+        <h4 className="font-headline text-headline-sm text-error">
           <Link to={`/risques/${risk.id}`} className="hover:underline">{risk.title}</Link>
         </h4>
-        <p className="font-body text-body-md text-on-surface-variant line-clamp-3">{risk.description}</p>
+        <p className="font-body text-body-sm text-on-surface-variant line-clamp-2">{risk.description}</p>
       </div>
       <div className="flex items-center justify-between pt-2 border-t border-surface-container-low">
         <button
@@ -249,28 +251,36 @@ function ResourceCard({ res }: { res: Resource }) {
   const [open, setOpen] = useState(false);
   const isVideo = res.kind === 'link' && !!res.url && !!detectVideo(res.url);
   return (
-    <SectionCard className="p-5 space-y-4 hover:shadow-card-hover transition-shadow">
+    <SectionCard className="p-4 space-y-3 hover:shadow-card-hover transition-shadow">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <Avatar name={res.proposed_by_name} size={44} />
+          <Avatar name={res.proposed_by_name} size={36} />
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-headline text-headline-sm text-on-surface">{res.proposed_by_name}</h3>
               <span className="text-outline font-body text-body-sm">•</span>
               <span className="font-body text-body-sm text-outline">{timeAgo(res.created_at)}</span>
             </div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 mt-1 rounded-full bg-primary/10 text-primary font-headline text-label-sm">
-              <span className="material-symbols-outlined text-[14px]">{res.kind === 'pdf' ? 'picture_as_pdf' : isVideo ? 'play_circle' : 'link'}</span>
-              <span>{res.kind === 'pdf' ? 'Document PDF' : isVideo ? 'Vidéo' : 'Ressource en ligne'}</span>
-            </span>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary font-headline text-label-sm">
+                <span className="material-symbols-outlined text-[14px]">{res.kind === 'pdf' ? 'picture_as_pdf' : isVideo ? 'play_circle' : 'link'}</span>
+                <span>{res.kind === 'pdf' ? 'Document PDF' : isVideo ? 'Vidéo' : 'Ressource en ligne'}</span>
+              </span>
+              <LevelBadge level={res.level} />
+            </div>
           </div>
         </div>
       </div>
-      <div className="space-y-2">
-        <h4 className="font-headline text-headline-md text-primary">
-          <Link to={`/ressources/${res.id}`} className="hover:underline">{res.title}</Link>
-        </h4>
-        <p className="font-body text-body-md text-on-surface-variant line-clamp-3">{res.description}</p>
+      <div className="flex gap-3">
+        {res.kind === 'pdf' && res.file_path && (
+          <PdfThumb src={`${API_URL}/uploads/${res.file_path}`} to={`/ressources/${res.id}`} />
+        )}
+        <div className="min-w-0 flex-1 space-y-2">
+          <h4 className="font-headline text-headline-sm text-primary">
+            <Link to={`/ressources/${res.id}`} className="hover:underline">{res.title}</Link>
+          </h4>
+          <p className="font-body text-body-sm text-on-surface-variant line-clamp-2">{res.description}</p>
+        </div>
       </div>
       {isVideo && res.url && <VideoEmbed url={res.url} />}
       <div className="flex items-center justify-between text-outline font-body text-body-sm pt-1">

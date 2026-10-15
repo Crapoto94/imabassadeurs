@@ -4,6 +4,7 @@ const comments = require('../comments/comments.service');
 const { pageParams } = require('../../utils/pagination');
 const { logAction } = require('../../utils/audit');
 const { supprimerReferences } = require('../../utils/polymorphic');
+const themes = require('../themes/themes.service');
 
 const canEdit = (user, exp) =>
   user.roles.includes('ianimateur') || user.roles.includes('admin') || exp.created_by === user.id;
@@ -13,8 +14,9 @@ async function list(user, query) {
   const params = [user.id];
   let where = '1=1';
   if (query.status) { params.push(query.status); where += ` AND e.status = $${params.length}`; }
+  if (query.theme) { params.push(query.theme); where += ` AND ${themes.themeFilterClause('experiment', params.length, 'e')}`; }
   params.push(limit, offset);
-  return db.all(
+  const rows = await db.all(
     `SELECT e.*, u.display_name AS created_by_name,
             (SELECT count(*)::int FROM ${SCHEMA}.experiment_participants p WHERE p.experiment_id = e.id) AS participants_count,
             EXISTS(SELECT 1 FROM ${SCHEMA}.experiment_participants p WHERE p.experiment_id = e.id AND p.user_id = $1) AS joined,
@@ -25,6 +27,8 @@ async function list(user, query) {
       LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params
   );
+  const themeMap = await themes.themesForEntities('experiment', rows.map((r) => r.id));
+  return rows.map((r) => ({ ...r, themes: themeMap[r.id] || [] }));
 }
 
 async function getById(id, user) {
@@ -40,6 +44,8 @@ async function getById(id, user) {
     [id]
   );
   e.joined = e.participants.some((p) => p.id === user.id);
+  const themeMap = await themes.themesForEntities('experiment', [id]);
+  e.themes = themeMap[id] || [];
   return e;
 }
 
@@ -52,6 +58,7 @@ async function create(user, data) {
     [title, description, objective, target_date || null, user.id]
   );
   await logAction(user.id, 'experiment_create', 'experiment', row.id, null);
+  await themes.setEntityThemes('experiment', row.id, data.theme_ids);
   return row.id;
 }
 
@@ -104,6 +111,7 @@ async function update(user, id, data) {
     [id, title, description, objective, target_date || null, status || null]
   );
   await logAction(user.id, 'experiment_update', 'experiment', id, null);
+  if (data.theme_ids !== undefined) await themes.setEntityThemes('experiment', id, data.theme_ids);
   return getById(id, user);
 }
 

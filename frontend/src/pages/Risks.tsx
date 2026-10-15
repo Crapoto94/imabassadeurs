@@ -3,14 +3,15 @@ import { Link } from 'react-router-dom';
 import Pagination from '../components/Pagination';
 import CommentThread from '../components/CommentThread';
 import AiPanel from '../components/AiPanel';
-import { createRisk, getRisks, synthRisk } from '../api/endpoints';
+import { createRisk, getRisks, getThemes, synthRisk } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import {
   Modal, PrimaryButton, SectionCard, StitchAlert, StitchEmpty, StitchField, StitchInput,
   StitchSelect, StitchSpinner, StitchTextarea, timeAgo, useToast,
 } from '../components/stitch';
-import type { Risk } from '../types';
+import { ThemePicker, ThemeChips } from '../components/Themes';
+import type { Risk, Theme } from '../types';
 
 function Stars({ value, tone }: { value: number; tone: 'error' | 'secondary' }) {
   return (
@@ -28,8 +29,8 @@ function RiskCard({ risk }: { risk: Risk }) {
   const [aiOpen, setAiOpen] = useState(false);
 
   return (
-    <article className="bg-surface-container-lowest rounded-2xl shadow-card p-6 hover:shadow-card-hover transition-shadow" id={`risk-${risk.id}`}>
-      <div className="flex items-start justify-between gap-4 pb-4">
+    <article className="bg-surface-container-lowest rounded-2xl shadow-card p-4 hover:shadow-card-hover transition-shadow" id={`risk-${risk.id}`}>
+      <div className="flex items-start justify-between gap-3 pb-3">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-full bg-primary-fixed/50 text-primary flex items-center justify-center shrink-0">
             <span className="font-headline text-headline-sm">{risk.id}</span>
@@ -39,7 +40,7 @@ function RiskCard({ risk }: { risk: Risk }) {
               {risk.concerns_ivry ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-headline text-label-sm font-bold">
                   <span className="material-symbols-outlined text-[15px]">location_on</span>
-                  Concerne directement Ivry-sur-Seine
+                  Concerne Ivry
                 </span>
               ) : (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-headline text-label-sm">
@@ -47,7 +48,7 @@ function RiskCard({ risk }: { risk: Risk }) {
                 </span>
               )}
             </div>
-            <h3 className="font-headline text-headline-md text-on-surface font-bold">
+            <h3 className="font-headline text-headline-sm text-on-surface font-bold">
               <Link to={`/risques/${risk.id}`} className="hover:text-secondary transition-colors">{risk.title}</Link>
             </h3>
             <p className="font-body text-body-sm text-outline">
@@ -74,7 +75,8 @@ function RiskCard({ risk }: { risk: Risk }) {
         </div>
       </div>
 
-      <p className="py-2 font-body text-body-md text-on-surface-variant line-clamp-3">{risk.description}</p>
+      <p className="py-1 font-body text-body-sm text-on-surface-variant line-clamp-2">{risk.description}</p>
+      <ThemeChips themes={risk.themes} className="pb-1" />
 
       {risk.amendments_count > 0 && (
         <div className="mt-2 pt-3 bg-surface-container/40 p-3 rounded-lg flex items-start gap-2.5">
@@ -88,29 +90,29 @@ function RiskCard({ risk }: { risk: Risk }) {
         </div>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center gap-2.5">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {canInteract && (
           <button
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-primary-container to-secondary text-on-primary rounded-full font-headline text-label-md shadow-sm hover:opacity-95 transition-all"
+            className="flex items-center gap-1 px-2.5 py-1 text-primary hover:bg-surface-container-low rounded-full font-headline text-label-sm transition-colors"
             onClick={() => setAiOpen((v) => !v)} type="button"
           >
-            <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
-            <span>Synthétiser ce risque et son débat</span>
+            <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
+            <span className="hidden md:inline">Résumer</span>
           </button>
         )}
         <button
-          className="flex items-center gap-1.5 px-3.5 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface-variant rounded-full font-headline text-label-md transition-all"
+          className="flex items-center gap-1 px-2.5 py-1 text-on-surface-variant hover:bg-surface-container-low rounded-full font-headline text-label-sm transition-colors"
           onClick={() => setForumOpen((v) => !v)} type="button"
         >
-          <span className="material-symbols-outlined text-[18px]">forum</span>
-          <span>Débat ({risk.comments_count})</span>
+          <span className="material-symbols-outlined text-[16px]">forum</span>
+          <span>{risk.comments_count}</span>
         </button>
         <Link
           to={`/risques/${risk.id}`}
-          className="ml-auto flex items-center gap-1.5 px-3.5 py-1.5 bg-surface-container hover:bg-surface-container-high text-primary rounded-full font-headline text-label-md transition-all"
+          className="ml-auto flex items-center gap-1 px-2.5 py-1 text-on-surface-variant hover:bg-surface-container rounded-full font-headline text-label-sm transition-colors"
         >
-          <span className="material-symbols-outlined text-[18px]">open_in_new</span>
-          <span>Instruction complète</span>
+          <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+          <span className="hidden sm:inline">Détails</span>
         </Link>
       </div>
 
@@ -124,22 +126,23 @@ function RiskCard({ risk }: { risk: Risk }) {
   );
 }
 
-function DeclareRiskModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+function DeclareRiskModal({ open, onClose, onDone, themes }: { open: boolean; onClose: () => void; onDone: () => void; themes: Theme[] }) {
   const { show, Toast } = useToast();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [concerns, setConcerns] = useState(true);
   const [importance, setImportance] = useState(2);
   const [probability, setProbability] = useState(2);
+  const [themeIds, setThemeIds] = useState<number[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (open) { setTitle(''); setDescription(''); setConcerns(true); setImportance(2); setProbability(2); setError(''); } }, [open]);
+  useEffect(() => { if (open) { setTitle(''); setDescription(''); setConcerns(true); setImportance(2); setProbability(2); setThemeIds([]); setError(''); } }, [open]);
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError('');
     try {
-      await createRisk({ title, description, concerns_ivry: concerns, importance, probability } as any);
+      await createRisk({ title, description, concerns_ivry: concerns, importance, probability, theme_ids: themeIds } as any);
       onClose();
       show('Risque soumis au collège des IAmbassadeurs');
       onDone();
@@ -182,6 +185,9 @@ function DeclareRiskModal({ open, onClose, onDone }: { open: boolean; onClose: (
           <StitchTextarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} required
             placeholder="Décrivez les usagers potentiellement impactés, les services municipaux concernés, et vos préconisations de précaution…" />
         </StitchField>
+        <StitchField label="Thèmes">
+          <ThemePicker themes={themes} value={themeIds} onChange={setThemeIds} />
+        </StitchField>
         {error && <StitchAlert kind="error">{error}</StitchAlert>}
         <div className="flex items-center justify-end gap-3 pt-2">
           <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-full hover:bg-surface-container text-on-surface-variant font-headline text-label-md transition-colors">
@@ -202,8 +208,12 @@ export default function Risks() {
   const limit = 12;
   const [scope, setScope] = useState<'all' | 'ivry' | 'general'>('all');
   const [sort, setSort] = useState<'severity' | 'recent' | 'debated'>('severity');
+  const [themeFilter, setThemeFilter] = useState('');
+  const [themes, setThemes] = useState<Theme[]>([]);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => { getThemes({ scope: 'risk' }).then(setThemes).catch(() => {}); }, []);
 
   async function load() {
     setLoading(true);
@@ -211,10 +221,11 @@ export default function Risks() {
       setItems(await getRisks({
         limit, offset,
         concerns_ivry: scope === 'all' ? undefined : scope === 'ivry' ? 'true' : 'false',
+        theme: themeFilter || undefined,
       }));
     } catch (e) { setError(errMsg(e)); } finally { setLoading(false); }
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [offset, scope]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [offset, scope, themeFilter]);
 
   const sorted = useMemo(() => {
     const arr = [...items];
@@ -369,12 +380,21 @@ export default function Risks() {
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
               <span className="font-headline text-label-sm text-outline hidden md:inline">Trier par :</span>
               <StitchSelect className="!w-auto !py-1.5 !px-3 !rounded-lg text-body-sm" value={sort} onChange={(e) => setSort(e.target.value as any)}>
                 <option value="severity">Gravité cumulée (Impact × Proba)</option>
                 <option value="recent">Plus récents d'abord</option>
                 <option value="debated">Plus débattus</option>
+              </StitchSelect>
+              <StitchSelect
+                className="!w-auto !py-1.5 !px-3 !rounded-lg text-body-sm"
+                value={themeFilter}
+                onChange={(e) => { setThemeFilter(e.target.value); setOffset(0); }}
+                aria-label="Filtrer par thème"
+              >
+                <option value="">Tous les thèmes</option>
+                {themes.map((t) => <option key={t.id} value={t.slug}>{t.label}</option>)}
               </StitchSelect>
             </div>
           </SectionCard>
@@ -421,7 +441,7 @@ export default function Risks() {
         </aside>
       </div>
 
-      <DeclareRiskModal open={modalOpen} onClose={() => setModalOpen(false)} onDone={() => { setOffset(0); load(); }} />
+      <DeclareRiskModal open={modalOpen} onClose={() => setModalOpen(false)} onDone={() => { setOffset(0); load(); }} themes={themes} />
     </div>
   );
 }

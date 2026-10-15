@@ -70,6 +70,7 @@ app.get('/api/status', async (req, res) => {
 // Routes métier versionnées.
 app.use('/api/v1/auth', require('./modules/auth/auth.routes'));
 app.use('/api/v1/admin', require('./modules/admin/admin.routes'));
+app.use('/api/v1/themes', require('./modules/themes/themes.routes'));
 app.use('/api/v1/resources', require('./modules/resources/resources.routes'));
 app.use('/api/v1/experiments', require('./modules/experiments/experiments.routes'));
 app.use('/api/v1/risks', require('./modules/risks/risks.routes'));

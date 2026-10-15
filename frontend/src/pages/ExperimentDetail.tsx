@@ -4,11 +4,12 @@ import { ArrowLeft, Users, UserPlus, UserMinus, Pencil, Trash2, Save } from 'luc
 import { Card, PageTitle, Spinner, Alert, Badge, Button, Select, Input, Textarea, Field } from '../components/ui';
 import AiPanel from '../components/AiPanel';
 import CommentThread from '../components/CommentThread';
-import { deleteExperiment, getExperiment, joinExperiment, synthExperiment, updateExperiment, updateExperimentStatus } from '../api/endpoints';
+import { deleteExperiment, getExperiment, getThemes, joinExperiment, synthExperiment, updateExperiment, updateExperimentStatus } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { EditedAt } from '../components/stitch';
-import type { Experiment } from '../types';
+import { ThemePicker, ThemeChips } from '../components/Themes';
+import type { Experiment, Theme } from '../types';
 
 const STATUS: Record<string, { label: string; color: string }> = {
   planned: { label: 'Planifiée', color: 'blue' },
@@ -23,15 +24,18 @@ export default function ExperimentDetail() {
   const navigate = useNavigate();
   const { user, canInteract, isIanimateur } = useAuth();
   const [e, setE] = useState<Experiment | null>(null);
+  const [allThemes, setAllThemes] = useState<Theme[]>([]);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', objective: '', target_date: '', status: 'planned' });
+  const [form, setForm] = useState({ title: '', description: '', objective: '', target_date: '', status: 'planned', theme_ids: [] as number[] });
+
+  useEffect(() => { getThemes({ scope: 'experiment' }).then(setAllThemes).catch(() => {}); }, []);
 
   async function load() {
     try {
       const data = await getExperiment(eid);
       setE(data);
-      setForm({ title: data.title, description: data.description, objective: data.objective, target_date: data.target_date || '', status: data.status });
+      setForm({ title: data.title, description: data.description, objective: data.objective, target_date: data.target_date || '', status: data.status, theme_ids: (data.themes || []).map((t) => t.id) });
     } catch (err) { setError(errMsg(err)); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [eid]);
@@ -76,6 +80,9 @@ export default function ExperimentDetail() {
               </Select>
             </Field>
           </div>
+          <Field label="Thèmes">
+            <ThemePicker themes={allThemes} value={form.theme_ids} onChange={(ids) => setForm({ ...form, theme_ids: ids })} />
+          </Field>
           <div className="flex gap-2">
             <Button onClick={save}><Save size={16} /> Enregistrer</Button>
             <Button variant="secondary" onClick={() => setEditing(false)}>Annuler</Button>
@@ -83,6 +90,7 @@ export default function ExperimentDetail() {
         </Card>
       ) : (
         <Card className="mb-6 space-y-4 p-5">
+          <ThemeChips themes={e.themes} />
           <div><div className="text-sm font-medium text-slate-500">Quoi</div><p className="whitespace-pre-wrap text-slate-800">{e.description}</p></div>
           <div><div className="text-sm font-medium text-slate-500">Pourquoi</div><p className="whitespace-pre-wrap text-slate-800">{e.objective}</p></div>
           <div className="flex items-center gap-3 text-xs text-slate-400">

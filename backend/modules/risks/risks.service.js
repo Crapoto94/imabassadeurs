@@ -4,6 +4,7 @@ const comments = require('../comments/comments.service');
 const { pageParams } = require('../../utils/pagination');
 const { logAction } = require('../../utils/audit');
 const { supprimerReferences } = require('../../utils/polymorphic');
+const themes = require('../themes/themes.service');
 
 const estModerateur = (user) => user.roles.includes('admin') || user.roles.includes('ianimateur');
 
@@ -19,9 +20,13 @@ async function list(user, query) {
     params.push(parseInt(query.min_importance, 10));
     clauses.push(`r.importance >= $${params.length}`);
   }
+  if (query.theme) {
+    params.push(query.theme);
+    clauses.push(themes.themeFilterClause('risk', params.length, 'r'));
+  }
   params.push(limit, offset);
   const where = clauses.length ? clauses.join(' AND ') : '1=1';
-  return db.all(
+  const rows = await db.all(
     `SELECT r.*, u.display_name AS proposed_by_name,
             (SELECT count(*)::int FROM ${SCHEMA}.risk_amendments a WHERE a.risk_id = r.id) AS amendments_count,
             (SELECT count(*)::int FROM ${SCHEMA}.comments c WHERE c.entity_type='risk' AND c.entity_id=r.id) AS comments_count
@@ -31,6 +36,8 @@ async function list(user, query) {
       LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params
   );
+  const themeMap = await themes.themesForEntities('risk', rows.map((r) => r.id));
+  return rows.map((r) => ({ ...r, themes: themeMap[r.id] || [] }));
 }
 
 async function getById(id) {
@@ -45,6 +52,8 @@ async function getById(id) {
        JOIN ${SCHEMA}.users u ON u.id = a.amended_by WHERE a.risk_id = $1 ORDER BY a.created_at ASC`,
     [id]
   );
+  const themeMap = await themes.themesForEntities('risk', [id]);
+  r.themes = themeMap[id] || [];
   return r;
 }
 
@@ -60,6 +69,7 @@ async function create(user, data) {
     [title, description, concerns_ivry !== false, imp, prob, user.id]
   );
   await logAction(user.id, 'risk_create', 'risk', row.id, null);
+  await themes.setEntityThemes('risk', row.id, data.theme_ids);
   return row.id;
 }
 
@@ -127,6 +137,7 @@ async function update(user, id, data) {
     );
   }
   await logAction(user.id, 'risk_update', 'risk', id, null);
+  if (data.theme_ids !== undefined) await themes.setEntityThemes('risk', id, data.theme_ids);
   return getById(id);
 }
 

@@ -4,11 +4,12 @@ import { ArrowLeft, History, Pencil, Trash2, Save } from 'lucide-react';
 import { Card, PageTitle, Spinner, Alert, Badge, Button, Select, Textarea, Input, Field } from '../components/ui';
 import AiPanel from '../components/AiPanel';
 import CommentThread from '../components/CommentThread';
-import { amendRisk, deleteRisk, getRisk, synthRisk, updateRisk } from '../api/endpoints';
+import { amendRisk, deleteRisk, getRisk, getThemes, synthRisk, updateRisk } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { EditedAt } from '../components/stitch';
-import type { Risk } from '../types';
+import { ThemePicker, ThemeChips } from '../components/Themes';
+import type { Risk, Theme } from '../types';
 
 export default function RiskDetail() {
   const { id } = useParams();
@@ -16,18 +17,21 @@ export default function RiskDetail() {
   const navigate = useNavigate();
   const { isIanimateur, user } = useAuth();
   const [r, setR] = useState<Risk | null>(null);
+  const [allThemes, setAllThemes] = useState<Theme[]>([]);
   const [error, setError] = useState('');
   const [importance, setImportance] = useState(1);
   const [probability, setProbability] = useState(1);
   const [reason, setReason] = useState('');
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', concerns_ivry: true, importance: 1, probability: 1, reason: '' });
+  const [form, setForm] = useState({ title: '', description: '', concerns_ivry: true, importance: 1, probability: 1, reason: '', theme_ids: [] as number[] });
+
+  useEffect(() => { getThemes({ scope: 'risk' }).then(setAllThemes).catch(() => {}); }, []);
 
   async function load() {
     try {
       const data = await getRisk(rid);
       setR(data); setImportance(data.importance); setProbability(data.probability);
-      setForm({ title: data.title, description: data.description, concerns_ivry: data.concerns_ivry, importance: data.importance, probability: data.probability, reason: '' });
+      setForm({ title: data.title, description: data.description, concerns_ivry: data.concerns_ivry, importance: data.importance, probability: data.probability, reason: '', theme_ids: (data.themes || []).map((t) => t.id) });
     } catch (e) { setError(errMsg(e)); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [rid]);
@@ -37,7 +41,7 @@ export default function RiskDetail() {
 
   async function save() {
     try {
-      const payload: any = { title: form.title, description: form.description };
+      const payload: any = { title: form.title, description: form.description, theme_ids: form.theme_ids };
       if (isIanimateur) payload.reason = form.reason;
       if (isIanimateur) { payload.concerns_ivry = form.concerns_ivry; payload.importance = form.importance; payload.probability = form.probability; }
       await updateRisk(rid, payload);
@@ -80,14 +84,19 @@ export default function RiskDetail() {
             </div>
           )}
           {isIanimateur && <Field label="Motif (si importance/probabilité modifiées)"><Input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></Field>}
+          <Field label="Thèmes">
+            <ThemePicker themes={allThemes} value={form.theme_ids} onChange={(ids) => setForm({ ...form, theme_ids: ids })} />
+          </Field>
           <div className="flex gap-2">
             <Button onClick={save}><Save size={16} /> Enregistrer</Button>
             <Button variant="secondary" onClick={() => setEditing(false)}>Annuler</Button>
           </div>
         </Card>
       ) : (
-        <Card className="mb-6 p-5"><p className="whitespace-pre-wrap text-slate-700">{r.description}</p>
-          <div className="mt-3 flex items-center gap-3 text-xs text-slate-400">
+        <Card className="mb-6 p-5 space-y-3">
+          <ThemeChips themes={r.themes} />
+          <p className="whitespace-pre-wrap text-slate-700">{r.description}</p>
+          <div className="flex items-center gap-3 text-xs text-slate-400">
             {!r.concerns_ivry && <span>Ce risque ne concerne pas directement Ivry.</span>}
             <EditedAt editedAt={r.edited_at} />
           </div>

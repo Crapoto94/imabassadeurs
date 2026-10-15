@@ -1,5 +1,18 @@
 export type Role = 'admin' | 'iambassadeur' | 'iaeclaireur' | 'ianimateur';
 
+export type ThemeScope = 'resource' | 'experiment' | 'risk';
+
+export interface Theme {
+  id: number;
+  slug: string;
+  label: string;
+  scope: ThemeScope;
+  group_label: string | null;
+  group_position?: number;
+  position?: number;
+  active?: boolean;
+}
+
 export interface User {
   id: number;
   ad_username: string;
@@ -17,6 +30,7 @@ export interface Resource {
   kind: 'pdf' | 'link';
   file_path: string | null;
   url: string | null;
+  level?: 'debutant' | 'intermediaire' | 'avance';
   status: 'pending' | 'published' | 'rejected';
   review_note: string | null;
   proposed_by: number;
@@ -27,6 +41,7 @@ export interface Resource {
   my_rating?: number | null;
   created_at: string;
   edited_at?: string | null;
+  themes?: Theme[];
 }
 
 export interface Experiment {
@@ -44,6 +59,7 @@ export interface Experiment {
   created_at: string;
   participants?: { id: number; display_name: string }[];
   edited_at?: string | null;
+  themes?: Theme[];
 }
 
 export interface Risk {
@@ -60,6 +76,7 @@ export interface Risk {
   created_at: string;
   amendments?: { id: number; importance: number; probability: number; amended_by_name: string; reason: string | null; created_at: string }[];
   edited_at?: string | null;
+  themes?: Theme[];
 }
 
 export interface VoteOption {

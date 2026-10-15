@@ -51,6 +51,11 @@ export default {
         'on-error': '#ffffff',
         'error-container': '#ffdad6',
         'on-error-container': '#93000a',
+        // Accent « ambre débat » (utilisé pour les niveaux de lecture notamment)
+        warning: '#f59e0b',
+        'on-warning': '#92400e',
+        'warning-container': '#fef3c7',
+        'on-warning-container': '#92400e',
         // Compatibilité avec les pages non encore portées (détail, compte…)
         ville: {
           50: '#eef6ff',

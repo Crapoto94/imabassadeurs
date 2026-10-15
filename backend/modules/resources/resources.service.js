@@ -6,6 +6,7 @@ const comments = require('../comments/comments.service');
 const { pageParams } = require('../../utils/pagination');
 const { logAction } = require('../../utils/audit');
 const { supprimerReferences } = require('../../utils/polymorphic');
+const themes = require('../themes/themes.service');
 
 const isModerator = (user) => user.roles.includes('ianimateur') || user.roles.includes('admin');
 
@@ -38,7 +39,14 @@ async function list(user, query) {
     params.push(`%${query.search}%`);
     where += ` AND (r.title ILIKE $${params.length} OR r.description ILIKE $${params.length})`;
   }
+  if (query.theme) {
+    params.push(query.theme);
+    where += ` AND ${themes.themeFilterClause('resource', params.length, 'r')}`;
+  }
   params.push(limit, offset);
+  let orderBy = 'r.created_at DESC';
+  if (query.sort === 'level') orderBy = `CASE r.level WHEN 'avance' THEN 0 WHEN 'intermediaire' THEN 1 ELSE 2 END, r.created_at DESC`;
+  if (query.sort === 'rating') orderBy = 'avg_stars DESC NULLS LAST, r.created_at DESC';
   const rows = await db.all(
     `SELECT r.*, u.display_name AS proposed_by_name,
             (SELECT round(avg(stars)::numeric, 2) FROM ${SCHEMA}.resource_ratings rr WHERE rr.resource_id = r.id) AS avg_stars,
@@ -47,11 +55,12 @@ async function list(user, query) {
        FROM ${SCHEMA}.resources r
        JOIN ${SCHEMA}.users u ON u.id = r.proposed_by
       WHERE ${where}
-      ORDER BY r.created_at DESC
+      ORDER BY ${orderBy}
       LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params
   );
-  return rows;
+  const themeMap = await themes.themesForEntities('resource', rows.map((r) => r.id));
+  return rows.map((r) => ({ ...r, themes: themeMap[r.id] || [] }));
 }
 
 async function getById(id, user) {
@@ -71,22 +80,25 @@ async function getById(id, user) {
     `SELECT stars FROM ${SCHEMA}.resource_ratings WHERE resource_id = $1 AND user_id = $2`,
     [id, user.id]
   );
-  return { ...r, my_rating: myRating?.stars || null };
+  const themeMap = await themes.themesForEntities('resource', [id]);
+  return { ...r, my_rating: myRating?.stars || null, themes: themeMap[id] || [] };
 }
 
 async function create(user, data, file) {
-  const { title, description, kind, url } = data;
+  const { title, description, kind, url, level } = data;
   if (!title || !description) throw Object.assign(new Error('Titre et description requis'), { status: 400 });
   if (kind === 'pdf' && !file) throw Object.assign(new Error('Fichier PDF requis'), { status: 400 });
   if (kind === 'link' && !url) throw Object.assign(new Error('URL requise'), { status: 400 });
 
-  const status = isModerator(user) ? 'published' : 'pending';
+  const lvl = ['debutant', 'intermediaire', 'avance'].includes(level) ? level : 'debutant';
+  const status = 'published';
   const row = await db.get(
-    `INSERT INTO ${SCHEMA}.resources (title, description, kind, file_path, url, proposed_by, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-    [title, description, kind, file ? file.filename : null, kind === 'link' ? url : null, user.id, status]
+    `INSERT INTO ${SCHEMA}.resources (title, description, kind, file_path, url, proposed_by, status, level)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+    [title, description, kind, file ? file.filename : null, kind === 'link' ? url : null, user.id, status, lvl]
   );
-  await logAction(user.id, 'resource_create', 'resource', row.id, { status });
+  await logAction(user.id, 'resource_create', 'resource', row.id, { status, level: lvl });
+  await themes.setEntityThemes('resource', row.id, data.theme_ids);
   return row.id;
 }
 
@@ -136,13 +148,15 @@ async function update(user, id, data) {
   if (!r) throw Object.assign(new Error('Ressource introuvable'), { status: 404 });
   const autorise = user.roles.includes('admin') || user.roles.includes('ianimateur') || r.proposed_by === user.id;
   if (!autorise) throw Object.assign(new Error('Droits insuffisants'), { status: 403 });
-  const { title, description, url } = data;
+  const { title, description, url, level } = data;
   if (!title || !description) throw Object.assign(new Error('Titre et description requis'), { status: 400 });
+  const lvl = ['debutant', 'intermediaire', 'avance'].includes(level) ? level : null;
   await db.run(
-    `UPDATE ${SCHEMA}.resources SET title=$2, description=$3, url=$4, edited_at=now() WHERE id=$1`,
-    [id, title, description, r.kind === 'link' ? (url || null) : null]
+    `UPDATE ${SCHEMA}.resources SET title=$2, description=$3, url=$4, level=COALESCE($5, level), edited_at=now() WHERE id=$1`,
+    [id, title, description, r.kind === 'link' ? (url || null) : null, lvl]
   );
   await logAction(user.id, 'resource_update', 'resource', id, null);
+  if (data.theme_ids !== undefined) await themes.setEntityThemes('resource', id, data.theme_ids);
   return getById(id, user);
 }
 

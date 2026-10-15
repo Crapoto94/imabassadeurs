@@ -17,6 +17,10 @@ async function supprimerReferences(entityType, entityId) {
     `DELETE FROM ${SCHEMA}.idea_cluster_items WHERE entity_type=$1 AND entity_id=$2`,
     [entityType, entityId]
   );
+  await db.run(
+    `DELETE FROM ${SCHEMA}.entity_themes WHERE entity_type=$1 AND entity_id=$2`,
+    [entityType, entityId]
+  );
 }
 
 module.exports = { supprimerReferences };

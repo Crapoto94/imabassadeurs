@@ -3,14 +3,15 @@ import { Link } from 'react-router-dom';
 import Pagination from '../components/Pagination';
 import CommentThread from '../components/CommentThread';
 import AiPanel from '../components/AiPanel';
-import { createExperiment, getExperiments, joinExperiment, synthExperiment } from '../api/endpoints';
+import { createExperiment, getExperiments, getThemes, joinExperiment, synthExperiment } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import {
   Avatar, Modal, PrimaryButton, SectionCard, StitchAlert, StitchEmpty, StitchField, StitchInput,
-  StitchSpinner, StitchTextarea, useToast,
+  StitchSelect, StitchSpinner, StitchTextarea, useToast,
 } from '../components/stitch';
-import type { Experiment } from '../types';
+import { ThemePicker, ThemeChips } from '../components/Themes';
+import type { Experiment, Theme } from '../types';
 
 const STATUS_META: Record<string, { label: string; chip: string; bar: string }> = {
   planned: { label: 'Idée planifiée', chip: 'bg-secondary-fixed text-on-secondary-fixed-variant', bar: 'from-secondary to-secondary-container' },
@@ -34,7 +35,7 @@ function ExperimentCard({ exp, onChanged }: { exp: Experiment; onChanged: () => 
   }
 
   return (
-    <article className="bg-surface-container-lowest rounded-3xl p-6 sm:p-7 shadow-card hover:shadow-card-hover transition-shadow flex flex-col gap-6 relative overflow-hidden">
+    <article className="bg-surface-container-lowest rounded-2xl p-4 shadow-card hover:shadow-card-hover transition-shadow flex flex-col gap-3 relative overflow-hidden">
       {Toast}
       <div className={`absolute top-0 left-0 h-1.5 w-full bg-gradient-to-r ${meta.bar}`} />
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -48,7 +49,7 @@ function ExperimentCard({ exp, onChanged }: { exp: Experiment; onChanged: () => 
               {meta.label}
             </span>
           </div>
-          <h2 className="font-headline text-headline-lg-mobile lg:text-headline-lg text-primary tracking-tight">
+          <h2 className="font-headline text-headline-sm lg:text-headline-md text-primary tracking-tight">
             <Link to={`/experimentations/${exp.id}`} className="hover:underline">{exp.title}</Link>
           </h2>
         </div>
@@ -62,20 +63,22 @@ function ExperimentCard({ exp, onChanged }: { exp: Experiment; onChanged: () => 
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-surface-container-low/60 p-5 rounded-2xl">
+      <ThemeChips themes={exp.themes} />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-surface-container-low/60 p-3 rounded-xl">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 text-primary font-headline text-headline-sm">
             <span className="material-symbols-outlined text-[20px]">help_center</span>
             <span>Le QUOI (le test concret)</span>
           </div>
-          <p className="font-body text-body-md text-on-surface-variant line-clamp-4">{exp.description}</p>
+          <p className="font-body text-body-sm text-on-surface-variant line-clamp-2">{exp.description}</p>
         </div>
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 text-tertiary font-headline text-headline-sm">
             <span className="material-symbols-outlined text-[20px]">verified</span>
             <span>Le POURQUOI (l'impact attendu)</span>
           </div>
-          <p className="font-body text-body-md text-on-surface-variant line-clamp-4">{exp.objective}</p>
+          <p className="font-body text-body-sm text-on-surface-variant line-clamp-2">{exp.objective}</p>
         </div>
       </div>
 
@@ -146,22 +149,23 @@ function ExperimentCard({ exp, onChanged }: { exp: Experiment; onChanged: () => 
   );
 }
 
-function CreateExperimentModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+function CreateExperimentModal({ open, onClose, onDone, themes }: { open: boolean; onClose: () => void; onDone: () => void; themes: Theme[] }) {
   const { show, Toast } = useToast();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [objective, setObjective] = useState('');
   const [targetDate, setTargetDate] = useState('');
   const [consent, setConsent] = useState(false);
+  const [themeIds, setThemeIds] = useState<number[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (open) { setTitle(''); setDescription(''); setObjective(''); setTargetDate(''); setConsent(false); setError(''); } }, [open]);
+  useEffect(() => { if (open) { setTitle(''); setDescription(''); setObjective(''); setTargetDate(''); setConsent(false); setThemeIds([]); setError(''); } }, [open]);
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError('');
     try {
-      await createExperiment({ title, description, objective, target_date: targetDate || null });
+      await createExperiment({ title, description, objective, target_date: targetDate || null, theme_ids: themeIds });
       onClose();
       show('Fiche projet transmise pour arbitrage par le Comité IAmbassadeurs');
       onDone();
@@ -186,6 +190,9 @@ function CreateExperimentModal({ open, onClose, onDone }: { open: boolean; onClo
         </StitchField>
         <StitchField label="Le POURQUOI : bénéfices pour le service public ivryen *">
           <StitchTextarea rows={2} value={objective} onChange={(e) => setObjective(e.target.value)} required placeholder="Gains de temps escomptés, amélioration pour les administrés…" />
+        </StitchField>
+        <StitchField label="Thèmes">
+          <ThemePicker themes={themes} value={themeIds} onChange={setThemeIds} />
         </StitchField>
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" className="rounded text-secondary focus:ring-0 w-4 h-4" checked={consent} onChange={(e) => setConsent(e.target.checked)} required />
@@ -212,15 +219,19 @@ export default function Experiments() {
   const [offset, setOffset] = useState(0);
   const limit = 12;
   const [status, setStatus] = useState('');
+  const [themeFilter, setThemeFilter] = useState('');
+  const [themes, setThemes] = useState<Theme[]>([]);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
 
+  useEffect(() => { getThemes({ scope: 'experiment' }).then(setThemes).catch(() => {}); }, []);
+
   async function load() {
     setLoading(true);
-    try { setItems(await getExperiments({ limit, offset, status: status || undefined })); }
+    try { setItems(await getExperiments({ limit, offset, status: status || undefined, theme: themeFilter || undefined })); }
     catch (e) { setError(errMsg(e)); } finally { setLoading(false); }
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [offset, status]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [offset, status, themeFilter]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { planned: 0, ongoing: 0, completed: 0, abandoned: 0 };
@@ -291,22 +302,36 @@ export default function Experiments() {
                 <span className="material-symbols-outlined text-primary text-[20px]">filter_list</span>
                 <span className="font-headline text-headline-sm text-on-surface">Filtrer les bancs d'essai</span>
               </div>
-              <div className="flex flex-wrap gap-2 pt-1">
-                <button
-                  className={`px-3.5 py-1.5 rounded-full font-headline text-label-md transition-all ${status === '' ? 'bg-primary-container text-on-primary-container font-bold shadow-sm' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
-                  onClick={() => { setStatus(''); setOffset(0); }} type="button"
-                >
-                  Tous
-                </button>
-                {Object.entries(STATUS_META).map(([k, v]) => (
+              <div className="flex flex-wrap items-center gap-2 pt-1 justify-between">
+                <div className="flex flex-wrap gap-2">
                   <button
-                    key={k}
-                    className={`px-3.5 py-1.5 rounded-full font-headline text-label-md transition-all ${status === k ? 'bg-primary-container text-on-primary-container font-bold shadow-sm' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
-                    onClick={() => { setStatus(k); setOffset(0); }} type="button"
+                    className={`px-3.5 py-1.5 rounded-full font-headline text-label-md transition-all ${status === '' ? 'bg-primary-container text-on-primary-container font-bold shadow-sm' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
+                    onClick={() => { setStatus(''); setOffset(0); }} type="button"
                   >
-                    {v.label}
+                    Tous
                   </button>
-                ))}
+                  {Object.entries(STATUS_META).map(([k, v]) => (
+                    <button
+                      key={k}
+                      className={`px-3.5 py-1.5 rounded-full font-headline text-label-md transition-all ${status === k ? 'bg-primary-container text-on-primary-container font-bold shadow-sm' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
+                      onClick={() => { setStatus(k); setOffset(0); }} type="button"
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+                <label className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-outline text-[18px]">sell</span>
+                  <StitchSelect
+                    className="!w-auto !py-1.5 !rounded-full !bg-surface-container-low"
+                    value={themeFilter}
+                    onChange={(e) => { setThemeFilter(e.target.value); setOffset(0); }}
+                    aria-label="Filtrer par thème"
+                  >
+                    <option value="">Tous les thèmes</option>
+                    {themes.map((t) => <option key={t.id} value={t.slug}>{t.label}</option>)}
+                  </StitchSelect>
+                </label>
               </div>
             </SectionCard>
 
@@ -376,7 +401,7 @@ export default function Experiments() {
         </div>
       </div>
 
-      <CreateExperimentModal open={modalOpen} onClose={() => setModalOpen(false)} onDone={() => { setOffset(0); load(); }} />
+      <CreateExperimentModal open={modalOpen} onClose={() => setModalOpen(false)} onDone={() => { setOffset(0); load(); }} themes={themes} />
     </div>
   );
 }

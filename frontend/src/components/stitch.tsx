@@ -61,6 +61,26 @@ export function RoleBadge({ role }: { role: Role | string }) {
   );
 }
 
+// ── Niveaux de lecture des ressources ──
+export const LEVELS = ['debutant', 'intermediaire', 'avance'] as const;
+export type LevelKey = (typeof LEVELS)[number];
+
+export const LEVEL_META: Record<LevelKey, { label: string; cls: string }> = {
+  debutant: { label: 'Débutant', cls: 'bg-tertiary/10 text-tertiary border border-tertiary/25' },
+  intermediaire: { label: 'Intermédiaire', cls: 'bg-warning/15 text-on-warning border border-warning/30' },
+  avance: { label: 'Avancé', cls: 'bg-primary/10 text-primary border border-primary/25' },
+};
+
+export function LevelBadge({ level, className = '' }: { level?: string | null; className?: string }) {
+  if (!level || !LEVEL_META[level as LevelKey]) return null;
+  const meta = LEVEL_META[level as LevelKey];
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-headline text-label-sm uppercase tracking-wider ${meta.cls} ${className}`}>
+      {meta.label}
+    </span>
+  );
+}
+
 export function SectionCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <div className={`bg-surface-container-lowest rounded-2xl shadow-card ${className}`}>{children}</div>

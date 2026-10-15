@@ -1,9 +1,19 @@
 import { api, API_URL } from './client';
-import type { AiResult, Comment, Experiment, GraphData, Principle, Resource, Risk, User, VoteSession } from '../types';
+import type { AiResult, Comment, Experiment, GraphData, Principle, Resource, Risk, Theme, User, VoteSession } from '../types';
 
 // ── Auth ──
 export const login = (username: string, password: string) =>
   api.post<{ token: string; user: User }>('/api/v1/auth/login', { username, password }).then((r) => r.data);
+
+// ── Thèmes ──
+export const getThemes = (params?: { scope?: string; all?: boolean }) =>
+  api.get<Theme[]>('/api/v1/themes', { params }).then((r) => r.data);
+export const createTheme = (data: { scope: string; label: string; group_label?: string | null; position?: number; group_position?: number }) =>
+  api.post<{ id: number }>('/api/v1/themes', data).then((r) => r.data);
+export const updateTheme = (id: number, data: Record<string, unknown>) =>
+  api.put(`/api/v1/themes/${id}`, data).then((r) => r.data);
+export const deleteTheme = (id: number) =>
+  api.delete(`/api/v1/themes/${id}`).then((r) => r.data);
 
 // ── Ressources ──
 export const getResources = (params?: Record<string, unknown>) =>
@@ -24,7 +34,7 @@ export const synthResourceThread = (id: number) =>
 export const getExperiments = (params?: Record<string, unknown>) =>
   api.get<Experiment[]>('/api/v1/experiments', { params }).then((r) => r.data);
 export const getExperiment = (id: number) => api.get<Experiment>(`/api/v1/experiments/${id}`).then((r) => r.data);
-export const createExperiment = (data: Partial<Experiment>) =>
+export const createExperiment = (data: Partial<Experiment> & { theme_ids?: number[] }) =>
   api.post('/api/v1/experiments', data).then((r) => r.data);
 export const updateExperimentStatus = (id: number, status: string) =>
   api.patch(`/api/v1/experiments/${id}/status`, { status }).then((r) => r.data);
@@ -36,7 +46,7 @@ export const synthExperiment = (id: number) =>
 export const getRisks = (params?: Record<string, unknown>) =>
   api.get<Risk[]>('/api/v1/risks', { params }).then((r) => r.data);
 export const getRisk = (id: number) => api.get<Risk>(`/api/v1/risks/${id}`).then((r) => r.data);
-export const createRisk = (data: Partial<Risk>) => api.post('/api/v1/risks', data).then((r) => r.data);
+export const createRisk = (data: Partial<Risk> & { theme_ids?: number[] }) => api.post('/api/v1/risks', data).then((r) => r.data);
 export const amendRisk = (id: number, data: { importance: number; probability: number; reason?: string }) =>
   api.post(`/api/v1/risks/${id}/amend`, data).then((r) => r.data);
 export const synthRisk = (id: number) =>
@@ -101,7 +111,7 @@ export const testPrompt = (actionKey: string, variables: Record<string, unknown>
 export const getAiModels = () => api.get<any>('/api/v1/admin/ai-models').then((r) => r.data);
 
 // ── Modération (admin & modérateurs) ──
-export const updateResource = (id: number, data: { title: string; description: string; url?: string | null }) =>
+export const updateResource = (id: number, data: { title: string; description: string; url?: string | null; level?: string | null; theme_ids?: number[] }) =>
   api.put<Resource>(`/api/v1/resources/${id}`, data).then((r) => r.data);
 export const deleteResource = (id: number) => api.delete(`/api/v1/resources/${id}`).then((r) => r.data);
 export const updateComment = (id: number, body: string) => api.put(`/api/v1/comments/${id}`, { body }).then((r) => r.data);
