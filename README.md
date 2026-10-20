@@ -4,6 +4,10 @@ Application fullstack de la Ville d’Ivry-sur-Seine pour l’élaboration colle
 Charte Éthique IA, conforme au `GUIDE_NOUVELLE_APP_VILLE.md` et au
 `CAHIER_DES_CHARGES_CHARTE_ETHIQUE_IA_IVRY.md`.
 
+> **Reprise du projet / contribution** : voir `AGENTS.md` (conventions, commandes,
+> pièges) et `HANDOFF.md` (état courant, décisions, points ouverts).
+
+
 ## Architecture
 
 - **Backend** : Node.js + Express 5, modulaire (`modules/<feature>/`), PostgreSQL partagé
