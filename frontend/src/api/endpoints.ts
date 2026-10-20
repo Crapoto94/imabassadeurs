@@ -25,6 +25,8 @@ export const reviewResource = (id: number, status: string, note?: string) =>
   api.post(`/api/v1/resources/${id}/review`, { status, note }).then((r) => r.data);
 export const rateResource = (id: number, stars: number) =>
   api.post(`/api/v1/resources/${id}/rate`, { stars }).then((r) => r.data);
+export const setResourceMandatory = (id: number, mandatory: boolean) =>
+  api.patch(`/api/v1/resources/${id}/mandatory`, { mandatory }).then((r) => r.data);
 export const synthResource = (id: number) =>
   api.post<AiResult>(`/api/v1/resources/${id}/synthesize`).then((r) => r.data);
 export const synthResourceThread = (id: number) =>

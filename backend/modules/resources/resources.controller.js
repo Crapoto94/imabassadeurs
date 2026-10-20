@@ -25,6 +25,7 @@ const synthThread = async (req, res) => {
 };
 
 const update = async (req, res) => res.json(await service.update(req.user, parseInt(req.params.id, 10), req.body));
+const setMandatory = async (req, res) => res.json(await service.setMandatory(req.user, parseInt(req.params.id, 10), req.body.mandatory));
 const remove = async (req, res) => res.json(await service.remove(req.user, parseInt(req.params.id, 10)));
 
-module.exports = { list, getOne, create, review, rate, synthDoc, synthThread, update, remove };
+module.exports = { list, getOne, create, review, rate, synthDoc, synthThread, update, setMandatory, remove };

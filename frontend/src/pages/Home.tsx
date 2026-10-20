@@ -7,8 +7,8 @@ import VideoEmbed, { detectVideo } from '../components/VideoEmbed';
 import PdfThumb from '../components/PdfThumb';
 import { API_URL } from '../api/client';
 import {
-  Avatar, GhostButton, LevelBadge, Modal, PrimaryButton, RoleBadge, SectionCard, StitchInput, StitchSelect,
-  StitchSpinner, timeAgo, useToast,
+  Avatar, GhostButton, LevelBadge, MandatoryBadge, Modal, PrimaryButton, RoleBadge, SectionCard, StitchInput,
+  StitchSelect, StitchSpinner, timeAgo, useToast,
 } from '../components/stitch';
 import type { Experiment, Principle, Resource, Risk, Theme, VoteSession } from '../types';
 
@@ -306,6 +306,7 @@ function ResourceCard({ res }: { res: Resource }) {
                 <span>{res.kind === 'pdf' ? 'Document PDF' : isVideo ? 'Vidéo' : 'Ressource en ligne'}</span>
               </span>
               <LevelBadge level={res.level} />
+              {res.is_mandatory && <MandatoryBadge />}
             </div>
           </div>
         </div>

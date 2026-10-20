@@ -9,6 +9,7 @@ const { supprimerReferences } = require('../../utils/polymorphic');
 const themes = require('../themes/themes.service');
 
 const isModerator = (user) => user.roles.includes('ianimateur') || user.roles.includes('admin');
+const LEVELS = ['debutant', 'intermediaire', 'avance'];
 
 // Extrait le texte d'un PDF (best effort) pour l'alimentation des prompts IA.
 async function extraireTexte(filePath) {
@@ -42,6 +43,10 @@ async function list(user, query) {
   if (query.theme) {
     params.push(query.theme);
     where += ` AND ${themes.themeFilterClause('resource', params.length, 'r')}`;
+  }
+  if (query.level && LEVELS.includes(query.level)) {
+    params.push(query.level);
+    where += ` AND r.level = $${params.length}`;
   }
   params.push(limit, offset);
   let orderBy = 'r.created_at DESC';
@@ -161,6 +166,18 @@ async function update(user, id, data) {
 }
 
 // Supprime une ressource (et son contenu lié) : admin ou IAnimateur.
+async function setMandatory(user, id, mandatory) {
+  if (!user.roles.includes('admin')) throw Object.assign(new Error('Réservé au compte Admin'), { status: 403 });
+  if (typeof mandatory !== 'boolean') throw Object.assign(new Error('Valeur obligatoire invalide'), { status: 400 });
+  const row = await db.get(
+    `UPDATE ${SCHEMA}.resources SET is_mandatory=$2 WHERE id=$1 RETURNING id, is_mandatory`,
+    [id, mandatory]
+  );
+  if (!row) throw Object.assign(new Error('Ressource introuvable'), { status: 404 });
+  await logAction(user.id, 'resource_mandatory', 'resource', id, { is_mandatory: mandatory });
+  return row;
+}
+
 async function remove(user, id) {
   if (!isModerator(user)) throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
   const r = await db.get(`SELECT file_path FROM ${SCHEMA}.resources WHERE id=$1`, [id]);
@@ -177,5 +194,5 @@ async function remove(user, id) {
 
 module.exports = {
   list, getById, create, review, rate, synthesizeDocument, synthesizeThread,
-  update, remove, isModerator,
+  update, setMandatory, remove, isModerator,
 };

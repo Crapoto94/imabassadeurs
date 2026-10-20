@@ -10,7 +10,7 @@ import { createResource, getResources, getThemes, rateResource, synthResource } 
 import { errMsg, API_URL } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import {
-  Avatar, LevelBadge, LEVELS, LEVEL_META, Modal, PrimaryButton, SectionCard, StitchAlert, StitchEmpty,
+  Avatar, LevelBadge, MandatoryBadge, LEVELS, LEVEL_META, Modal, PrimaryButton, SectionCard, StitchAlert, StitchEmpty,
   StitchField, StitchInput, StitchSelect, StitchSpinner, StitchTextarea, timeAgo, useToast,
 } from '../components/stitch';
 import { ThemePicker, ThemeChips } from '../components/Themes';
@@ -31,84 +31,89 @@ function ResourceCard({ res, onChanged }: { res: Resource; onChanged: () => void
   const isVideo = res.kind === 'link' && !!res.url && !!detectVideo(res.url);
 
   return (
-    <article className="bg-surface-container-lowest rounded-2xl p-4 shadow-card hover:shadow-card-hover transition-shadow flex flex-col gap-3">
+    <article className="bg-surface-container-lowest rounded-2xl p-3.5 shadow-card hover:shadow-card-hover transition-shadow flex flex-col gap-2.5">
       {Toast}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <Avatar name={res.proposed_by_name} size={32} />
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="font-headline text-label-md text-on-surface truncate">{res.proposed_by_name}</span>
-              <span className="text-outline font-body text-body-sm">•</span>
-              <span className="font-body text-body-sm text-outline whitespace-nowrap">{timeAgo(res.created_at)}</span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface-container text-on-surface-variant rounded-full font-headline text-label-sm">
-                <span className={`material-symbols-outlined text-[14px] ${res.kind === 'pdf' ? 'text-error' : isVideo ? 'text-tertiary' : 'text-secondary'}`}>
-                  {res.kind === 'pdf' ? 'picture_as_pdf' : isVideo ? 'play_circle' : 'open_in_new'}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="min-w-0 flex-1 flex flex-col gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Avatar name={res.proposed_by_name} size={28} />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-headline text-label-md text-on-surface truncate">{res.proposed_by_name}</span>
+                <span className="text-outline font-body text-body-sm">•</span>
+                <span className="font-body text-body-sm text-outline whitespace-nowrap">{timeAgo(res.created_at)}</span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface-container text-on-surface-variant rounded-full font-headline text-label-sm">
+                  <span className={`material-symbols-outlined text-[14px] ${res.kind === 'pdf' ? 'text-error' : isVideo ? 'text-tertiary' : 'text-secondary'}`}>
+                    {res.kind === 'pdf' ? 'picture_as_pdf' : isVideo ? 'play_circle' : 'open_in_new'}
+                  </span>
+                  <span>{res.kind === 'pdf' ? 'PDF' : isVideo ? 'Vidéo' : 'Lien'}</span>
                 </span>
-                <span>{res.kind === 'pdf' ? 'PDF' : isVideo ? 'Vidéo' : 'Lien'}</span>
-              </span>
-              <LevelBadge level={res.level} />
+                <LevelBadge level={res.level} />
+                {res.is_mandatory && <MandatoryBadge />}
+              </div>
             </div>
           </div>
-        </div>
-        <span className="flex items-center gap-1 font-headline text-label-sm text-on-surface-variant shrink-0" title={`${res.ratings_count} avis`}>
-          <span className="material-symbols-outlined text-[15px] text-secondary filled">star</span>
-          {res.avg_stars ? Number(res.avg_stars).toFixed(1) : '—'}
-        </span>
-      </div>
 
-      {isVideo && res.url && <VideoEmbed url={res.url} />}
+          <div className="flex gap-3">
+            {res.kind === 'pdf' && res.file_path && (
+              <PdfThumb src={`${API_URL}/uploads/${res.file_path}`} to={`/ressources/${res.id}`} width={80} />
+            )}
+            <div className="min-w-0 flex-1">
+              <h2 className="font-headline text-headline-sm text-primary font-bold hover:text-secondary transition-colors">
+                <Link to={`/ressources/${res.id}`}>{res.title}</Link>
+              </h2>
+              <p className="font-body text-body-sm text-on-surface-variant mt-1 line-clamp-2">{res.description}</p>
+              <ThemeChips themes={res.themes} className="mt-1.5" />
+            </div>
+          </div>
 
-      <div className="flex gap-3">
-        {res.kind === 'pdf' && res.file_path && (
-          <PdfThumb src={`${API_URL}/uploads/${res.file_path}`} to={`/ressources/${res.id}`} />
-        )}
-        <div className="min-w-0 flex-1">
-          <h2 className="font-headline text-headline-sm text-primary font-bold hover:text-secondary transition-colors">
-            <Link to={`/ressources/${res.id}`}>{res.title}</Link>
-          </h2>
-          <p className="font-body text-body-sm text-on-surface-variant mt-1 line-clamp-2">{res.description}</p>
-          <ThemeChips themes={res.themes} className="mt-1.5" />
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-surface-container-low pt-2">
-        <div className="flex items-center gap-2">
-          <StarRating value={Math.round(res.my_rating || res.avg_stars || 0)} size={16} onRate={canInteract ? rate : undefined} />
-          {canInteract && (
-            <span className="font-body text-body-sm text-outline hidden sm:inline">({res.ratings_count})</span>
+          {isVideo && res.url && (
+            <div className="w-[70%]">
+              <VideoEmbed url={res.url} />
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          {canInteract && (
-            <>
-              <button
-                className="flex items-center gap-1 px-2.5 py-1 text-primary hover:bg-surface-container-low rounded-full font-headline text-label-sm transition-colors"
-                onClick={() => setAiDoc((v) => !v)} type="button"
-                title="Synthétiser ce document par IA"
-              >
-                <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
-                <span className="hidden md:inline">Résumer</span>
-              </button>
-              <button
-                className="flex items-center gap-1 px-2.5 py-1 text-on-surface-variant hover:bg-surface-container-low rounded-full font-headline text-label-sm transition-colors"
-                onClick={() => setForumOpen((v) => !v)} type="button"
-              >
-                <span className="material-symbols-outlined text-[16px]">chat_bubble_outline</span>
-                <span>{res.comments_count}</span>
-              </button>
-            </>
-          )}
-          <Link
-            to={`/ressources/${res.id}`}
-            className="flex items-center gap-1 px-2.5 py-1 text-on-surface-variant hover:bg-surface-container rounded-full font-headline text-label-sm transition-colors"
-          >
-            <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-            <span className="hidden sm:inline">Consulter</span>
-          </Link>
-        </div>
+
+        <aside className="flex shrink-0 flex-row flex-wrap items-center justify-end gap-2 border-t border-surface-container-low pt-2 sm:w-36 sm:flex-col sm:items-end sm:justify-start sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="flex items-center gap-1 font-headline text-label-sm text-on-surface-variant" title={`${res.ratings_count} avis`}>
+              <span className="material-symbols-outlined text-[15px] text-secondary filled">star</span>
+              {res.avg_stars ? Number(res.avg_stars).toFixed(1) : '—'}
+              <span className="text-outline">({res.ratings_count})</span>
+            </span>
+            <StarRating value={Math.round(res.my_rating || res.avg_stars || 0)} size={14} onRate={canInteract ? rate : undefined} />
+          </div>
+          <div className="flex items-center gap-1 sm:w-full sm:flex-col sm:items-stretch">
+            {canInteract && (
+              <>
+                <button
+                  className="flex items-center justify-center gap-1 px-2.5 py-1 text-primary hover:bg-surface-container-low rounded-full font-headline text-label-sm transition-colors sm:justify-start"
+                  onClick={() => setAiDoc((v) => !v)} type="button"
+                  title="Synthétiser ce document par IA"
+                >
+                  <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
+                  <span>Résumer</span>
+                </button>
+                <button
+                  className="flex items-center justify-center gap-1 px-2.5 py-1 text-on-surface-variant hover:bg-surface-container-low rounded-full font-headline text-label-sm transition-colors sm:justify-start"
+                  onClick={() => setForumOpen((v) => !v)} type="button"
+                >
+                  <span className="material-symbols-outlined text-[16px]">chat_bubble_outline</span>
+                  <span>{res.comments_count}</span>
+                </button>
+              </>
+            )}
+            <Link
+              to={`/ressources/${res.id}`}
+              className="flex items-center justify-center gap-1 px-2.5 py-1 text-on-surface-variant hover:bg-surface-container rounded-full font-headline text-label-sm transition-colors sm:justify-start"
+            >
+              <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+              <span>Consulter</span>
+            </Link>
+          </div>
+        </aside>
       </div>
 
       {aiDoc && (
@@ -227,6 +232,7 @@ export default function Resources() {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<'created' | 'level' | 'rating'>('created');
   const [themeFilter, setThemeFilter] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
   const [themes, setThemes] = useState<Theme[]>([]);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -243,10 +249,10 @@ export default function Resources() {
   async function load() {
     setLoading(true); setError('');
     try {
-      setItems(await getResources({ limit, offset, search: search || undefined, sort, theme: themeFilter || undefined }));
+      setItems(await getResources({ limit, offset, search: search || undefined, sort, theme: themeFilter || undefined, level: levelFilter || undefined }));
     } catch (e) { setError(errMsg(e)); } finally { setLoading(false); }
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [offset, sort, themeFilter]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [offset, sort, themeFilter, levelFilter]);
 
   const top = useMemo(
     () => [...items].filter((r) => r.avg_stars).sort((a, b) => Number(b.avg_stars) - Number(a.avg_stars)).slice(0, 3),
@@ -316,6 +322,18 @@ export default function Resources() {
                 >
                   <option value="">Tous les thèmes</option>
                   {themes.map((t) => <option key={t.id} value={t.slug}>{t.label}</option>)}
+                </StitchSelect>
+              </label>
+              <label className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-outline text-[18px]">signal_cellular_alt</span>
+                <StitchSelect
+                  className="!w-auto !py-1.5 !rounded-full !bg-surface-container-low"
+                  value={levelFilter}
+                  onChange={(e) => { setLevelFilter(e.target.value); setOffset(0); }}
+                  aria-label="Filtrer par niveau de lecture"
+                >
+                  <option value="">Tous les niveaux</option>
+                  {LEVELS.map((k) => <option key={k} value={k}>{LEVEL_META[k].label}</option>)}
                 </StitchSelect>
               </label>
             </div>

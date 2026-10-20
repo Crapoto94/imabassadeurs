@@ -31,6 +31,7 @@ export interface Resource {
   file_path: string | null;
   url: string | null;
   level?: 'debutant' | 'intermediaire' | 'avance';
+  is_mandatory?: boolean;
   status: 'pending' | 'published' | 'rejected';
   review_note: string | null;
   proposed_by: number;

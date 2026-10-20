@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, ExternalLink, Pencil, Trash2, Save } from 'lucide-react';
+import { ArrowLeft, FileText, ExternalLink, Flag, Pencil, Trash2, Save } from 'lucide-react';
 import { Card, PageTitle, Spinner, Alert, Button, Textarea, Input, Field, Select } from '../components/ui';
 import StarRating from '../components/StarRating';
 import AiPanel from '../components/AiPanel';
 import CommentThread from '../components/CommentThread';
 import VideoEmbed, { detectVideo } from '../components/VideoEmbed';
 import PdfEmbed from '../components/PdfEmbed';
-import { deleteResource, getResource, getThemes, rateResource, synthResource, synthResourceThread, updateResource } from '../api/endpoints';
+import { deleteResource, getResource, getThemes, rateResource, setResourceMandatory, synthResource, synthResourceThread, updateResource } from '../api/endpoints';
 import { API_URL, errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
-import { EditedAt, LevelBadge, LEVELS, LEVEL_META } from '../components/stitch';
+import { EditedAt, LevelBadge, MandatoryBadge, LEVELS, LEVEL_META } from '../components/stitch';
 import { ThemePicker, ThemeChips } from '../components/Themes';
 import type { Resource, Theme } from '../types';
 
@@ -47,6 +47,7 @@ export default function ResourceDetail() {
 
   const peutEditer = isAdmin || isIanimateur || r.proposed_by === user?.id;
   const peutSupprimer = isAdmin || isIanimateur;
+  const isMandatory = Boolean(r.is_mandatory);
 
   async function save() {
     try { await updateResource(rid, form); setEditing(false); load(); }
@@ -57,6 +58,10 @@ export default function ResourceDetail() {
     try { await deleteResource(rid); navigate('/ressources'); }
     catch (e) { setError(errMsg(e)); }
   }
+  async function toggleMandatory() {
+    try { await setResourceMandatory(rid, !isMandatory); load(); }
+    catch (e) { setError(errMsg(e)); }
+  }
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-8">
@@ -65,7 +70,12 @@ export default function ResourceDetail() {
         title={r.title}
         subtitle={`Proposé par ${r.proposed_by_name} le ${new Date(r.created_at).toLocaleDateString('fr-FR')}`}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && (
+              <Button variant={r.is_mandatory ? 'secondary' : 'danger'} onClick={toggleMandatory}>
+                <Flag size={16} /> {r.is_mandatory ? 'Retirer du parcours obligatoire' : 'Ajouter au parcours obligatoire'}
+              </Button>
+            )}
             {peutEditer && !editing && <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} /> Éditer</Button>}
             {peutSupprimer && <Button variant="danger" onClick={remove}><Trash2 size={16} /> Supprimer</Button>}
           </div>
@@ -94,6 +104,7 @@ export default function ResourceDetail() {
         <Card className="mb-6 space-y-4 p-5">
           <div className="flex flex-wrap items-center gap-2">
             <LevelBadge level={r.level} />
+            {r.is_mandatory && <MandatoryBadge />}
           </div>
           <ThemeChips themes={r.themes} />
           <p className="whitespace-pre-wrap text-slate-700">{r.description}</p>

@@ -81,6 +81,14 @@ export function LevelBadge({ level, className = '' }: { level?: string | null; c
   );
 }
 
+export function MandatoryBadge({ className = '' }: { className?: string }) {
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full bg-error/15 text-error border border-error/30 font-headline text-label-sm uppercase tracking-wider ${className}`}>
+      Parcours obligatoire
+    </span>
+  );
+}
+
 export function SectionCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <div className={`bg-surface-container-lowest rounded-2xl shadow-card ${className}`}>{children}</div>
