@@ -1,21 +1,60 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { castVote, getExperiments, getPrinciples, getResources, getRisks, getStats, getVotes, joinExperiment } from '../api/endpoints';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { castVote, getExperiments, getPrinciples, getResources, getRisks, getStats, getThemes, getVotes, joinExperiment } from '../api/endpoints';
 import { useAuth } from '../hooks/useAuth';
 import CommentThread from '../components/CommentThread';
 import VideoEmbed, { detectVideo } from '../components/VideoEmbed';
 import PdfThumb from '../components/PdfThumb';
 import { API_URL } from '../api/client';
 import {
-  Avatar, LevelBadge, Modal, ProgressBar, RoleBadge, SectionCard, StitchSpinner, timeAgo, useToast,
+  Avatar, GhostButton, LevelBadge, Modal, PrimaryButton, RoleBadge, SectionCard, StitchInput, StitchSelect,
+  StitchSpinner, timeAgo, useToast,
 } from '../components/stitch';
-import type { Experiment, Principle, Resource, Risk, VoteSession } from '../types';
+import type { Experiment, Principle, Resource, Risk, Theme, VoteSession } from '../types';
 
 type FeedItem =
   | { kind: 'experiment'; date: string; data: Experiment }
   | { kind: 'risk'; date: string; data: Risk }
   | { kind: 'resource'; date: string; data: Resource }
   | { kind: 'vote'; date: string; data: VoteSession };
+
+const feedThemes = (item: FeedItem): Theme[] => item.kind === 'vote' ? [] : item.data.themes || [];
+
+const feedTitle = (item: FeedItem) => {
+  switch (item.kind) {
+    case 'vote': return item.data.question;
+    case 'experiment':
+    case 'risk':
+    case 'resource': return item.data.title;
+  }
+};
+
+const feedText = (item: FeedItem) => {
+  switch (item.kind) {
+    case 'vote': return `${item.data.question} ${item.data.created_by_name}`;
+    case 'experiment': return `${item.data.title} ${item.data.description} ${item.data.created_by_name}`;
+    case 'risk':
+    case 'resource': return `${item.data.title} ${item.data.description} ${item.data.proposed_by_name}`;
+  }
+};
+
+const feedRating = (item: FeedItem) =>
+  item.kind === 'resource' && item.data.avg_stars != null ? Number(item.data.avg_stars) : -1;
+
+type FeedKind = FeedItem['kind'];
+
+const FEED_TYPE_OPTIONS: { kind: FeedKind; label: string }[] = [
+  { kind: 'experiment', label: 'Expérimentations' },
+  { kind: 'risk', label: 'Risques' },
+  { kind: 'resource', label: 'Ressources' },
+  { kind: 'vote', label: 'Votes' },
+];
+
+const THEME_SCOPES: { scope: Theme['scope']; label: string }[] = [
+  { scope: 'experiment', label: 'Expérimentations' },
+  { scope: 'risk', label: 'Risques' },
+  { scope: 'resource', label: 'Ressources' },
+];
 
 // ── Cartes du fil ──
 
@@ -320,50 +359,138 @@ function ResourceCard({ res }: { res: Resource }) {
 export default function Home() {
   const { user, canInteract } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [stats, setStats] = useState<any>(null);
   const [principles, setPrinciples] = useState<Principle[]>([]);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [risks, setRisks] = useState<Risk[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [votes, setVotes] = useState<VoteSession[]>([]);
+  const [themes, setThemes] = useState<Theme[]>([]);
   const [loading, setLoading] = useState(true);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const [filterTypes, setFilterTypes] = useState<FeedKind[]>([]);
+  const [filterThemes, setFilterThemes] = useState<string[]>([]);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'alpha' | 'rating'>('date_desc');
+  const filterMenuRef = useRef<HTMLDivElement>(null);
 
   async function load() {
     try {
-      const [s, p, e, r, res, v] = await Promise.all([
+      const [s, p, e, r, res, v, t] = await Promise.all([
         getStats().catch(() => null),
         getPrinciples().catch(() => []),
         getExperiments().catch(() => []),
         getRisks().catch(() => []),
         getResources({ status: 'published' }).catch(() => []),
         getVotes().catch(() => []),
+        getThemes().catch(() => []),
       ]);
-      setStats(s); setPrinciples(p); setExperiments(e); setRisks(r); setResources(res); setVotes(v);
+      setStats(s); setPrinciples(p); setExperiments(e); setRisks(r); setResources(res); setVotes(v); setThemes(t);
     } finally { setLoading(false); }
   }
   useEffect(() => { load(); }, []);
 
-  const feed = useMemo<FeedItem[]>(() => {
+  const openComposer = Boolean((location.state as { openComposer?: boolean } | null)?.openComposer);
+  useEffect(() => {
+    if (!openComposer) return;
+    setComposerOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [openComposer, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (!filterMenuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (filterMenuRef.current && !filterMenuRef.current.contains(e.target as Node)) setFilterMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFilterMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [filterMenuOpen]);
+
+  const hasActiveFilters = filterTypes.length > 0 || filterThemes.length > 0 || filterQuery.trim() !== '' || sortBy !== 'date_desc';
+
+  function resetFilters() {
+    setFilterTypes([]);
+    setFilterThemes([]);
+    setFilterQuery('');
+    setSortBy('date_desc');
+    setFilterMenuOpen(false);
+  }
+
+  function toggleType(kind: FeedKind) {
+    const next = filterTypes.includes(kind) ? filterTypes.filter((k) => k !== kind) : [...filterTypes, kind];
+    setFilterTypes(next);
+    if (next.length) {
+      const allowed = new Set(themes.filter((t) => next.includes(t.scope)).map((t) => t.slug));
+      setFilterThemes((prev) => prev.filter((slug) => allowed.has(slug)));
+    }
+  }
+
+  function toggleTheme(slug: string) {
+    setFilterThemes((prev) => prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]);
+  }
+
+  const filteredFeed = useMemo<FeedItem[]>(() => {
     const items: FeedItem[] = [
       ...experiments.map((data) => ({ kind: 'experiment' as const, date: data.created_at, data })),
       ...risks.map((data) => ({ kind: 'risk' as const, date: data.created_at, data })),
       ...resources.map((data) => ({ kind: 'resource' as const, date: data.created_at, data })),
       ...votes.map((data) => ({ kind: 'vote' as const, date: data.opens_at, data })),
     ];
-    return items.sort((a, b) => +new Date(b.date) - +new Date(a.date)).slice(0, 12);
-  }, [experiments, risks, resources, votes]);
+    const q = filterQuery.trim().toLowerCase();
+    const filtered = items.filter((item) => {
+      if (filterTypes.length > 0 && !filterTypes.includes(item.kind)) return false;
+      if (filterThemes.length > 0 && !feedThemes(item).some((t) => filterThemes.includes(t.slug))) return false;
+      if (q && !feedText(item).toLowerCase().includes(q)) return false;
+      return true;
+    });
+    filtered.sort((a, b) => {
+      if (sortBy === 'date_asc') return +new Date(a.date) - +new Date(b.date);
+      if (sortBy === 'alpha') return feedTitle(a).localeCompare(feedTitle(b), 'fr', { sensitivity: 'base' });
+      if (sortBy === 'rating') {
+        const diff = feedRating(b) - feedRating(a);
+        if (diff !== 0) return diff;
+      }
+      return +new Date(b.date) - +new Date(a.date);
+    });
+    return filtered;
+  }, [experiments, risks, resources, votes, filterTypes, filterThemes, filterQuery, sortBy]);
+
+  const feed = useMemo(() => filteredFeed.slice(0, 12), [filteredFeed]);
 
   const openVotes = votes.filter((v) => v.status === 'open');
   const featuredVote = openVotes[0];
   const adopted = principles.filter((p) => p.status === 'adopted').length;
   const firstName = user?.display_name?.split(' ')[0] || '';
   const composerTargets = [
-    { icon: 'lightbulb', label: 'Proposer une idée d\'expérimentation', to: '/experimentations', color: 'text-secondary' },
-    { icon: 'warning', label: 'Signaler un risque IA', to: '/risques', color: 'text-error' },
-    { icon: 'article', label: 'Partager un document / lien', to: '/ressources', color: 'text-primary' },
-    { icon: 'how_to_vote', label: 'Lancer un vote', to: '/votes', color: 'text-tertiary-container' },
+    { icon: 'lightbulb', label: 'Expérimentation', full: 'Proposer une expérimentation', to: '/experimentations', color: 'text-secondary' },
+    { icon: 'warning', label: 'Risque IA', full: 'Déclarer un risque IA', to: '/risques', color: 'text-error' },
+    { icon: 'article', label: 'Document', full: 'Partager un document ou un lien', to: '/ressources', color: 'text-primary' },
+    { icon: 'how_to_vote', label: 'Vote', full: 'Lancer une consultation ou un vote', to: '/votes', color: 'text-tertiary-container' },
   ];
+
+  const visibleThemeScopes = filterTypes.length > 0
+    ? THEME_SCOPES.filter((s) => filterTypes.includes(s.scope))
+    : THEME_SCOPES;
+  const themeGroups = visibleThemeScopes
+    .map((s) => ({ ...s, themes: themes.filter((t) => t.scope === s.scope) }))
+    .filter((g) => g.themes.length > 0);
+  const themesOnlyForVotes = filterTypes.length > 0 && visibleThemeScopes.length === 0;
+  const filterSelectionLabel = filterTypes.length === 0 && filterThemes.length === 0
+    ? 'Tous les types et thèmes'
+    : [
+        filterTypes.length > 0 ? `${filterTypes.length} type(s)` : 'Tous les types',
+        filterThemes.length > 0 ? `${filterThemes.length} thème(s)` : 'Tous les thèmes',
+      ].join(' · ');
 
   return (
     <div className="w-full max-w-[1440px] mx-auto px-3 sm:px-4 lg:px-6 py-6">
@@ -382,18 +509,6 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            {stats && (
-              <div className="bg-surface-container-low rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between font-headline text-label-sm">
-                  <span className="text-on-surface-variant">Taux de consensus de la démarche</span>
-                  <span className="text-primary font-bold">{stats.consensus_rate}%</span>
-                </div>
-                <ProgressBar value={stats.consensus_rate || 0} />
-                <p className="font-body text-body-sm text-outline text-[12px] leading-tight">
-                  {stats.ideas_total} idée(s) émise(s) • {stats.ideas_retained} retenue(s)
-                </p>
-              </div>
-            )}
             <Link
               to="/compte"
               className="w-full py-2 px-3 text-center bg-surface-container hover:bg-surface-container-high text-primary font-headline text-label-md rounded-lg transition-colors flex items-center justify-center gap-1.5"
@@ -457,36 +572,171 @@ export default function Home() {
         <div className="lg:col-span-6 space-y-5">
           {/* Composer */}
           {canInteract && (
-            <SectionCard className="p-4 sm:p-5 space-y-4">
-              <div className="flex items-center gap-3">
-                <Avatar name={user?.display_name} size={40} />
+            <div className="flex items-stretch gap-2.5">
+              <SectionCard className="min-w-0 flex-1 p-3 sm:p-3.5 space-y-1.5">
+                <div className="flex flex-col items-center gap-0.5">
+                  <PrimaryButton icon="add_circle" onClick={() => setComposerOpen(true)} className="py-1.5">
+                    Proposer une contribution
+                  </PrimaryButton>
+                  <p className="font-body text-body-sm text-on-surface-variant text-[12px] text-center">
+                    Partagez une idée, un risque, un document ou un vote, {firstName}.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+                  {composerTargets.map(({ icon, label, to, color }) => (
+                    <button
+                      key={to + label}
+                      className="flex flex-col items-center justify-center gap-0.5 py-1 px-1.5 rounded-lg hover:bg-surface-container-low transition-colors text-on-surface-variant text-center"
+                      onClick={() => navigate(to)} type="button"
+                    >
+                      <span className={`material-symbols-outlined text-[18px] ${color}`}>{icon}</span>
+                      <span className="font-headline text-label-sm leading-tight">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </SectionCard>
+              <div className="flex w-[24%] max-w-[140px] shrink-0 flex-col justify-center gap-1.5">
                 <button
-                  className="w-full text-left bg-surface-container-low hover:bg-surface-container transition-colors py-2.5 px-4 rounded-full font-body text-body-sm text-outline"
-                  onClick={() => setComposerOpen(true)} type="button"
+                  type="button"
+                  onClick={() => { setFiltersOpen((v) => !v); setFilterMenuOpen(false); }}
+                  aria-expanded={filtersOpen}
+                  aria-controls="home-feed-filters"
+                  className={`relative inline-flex w-full items-center justify-center gap-1 px-2 py-2 rounded-full font-headline text-[11px] sm:text-label-md leading-tight shadow-sm transition-colors ${
+                    filtersOpen || hasActiveFilters
+                      ? 'bg-primary text-on-primary hover:bg-primary-container'
+                      : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
+                  }`}
                 >
-                  Une idée, un risque ou une ressource à partager, {firstName} ?
+                  <span className="material-symbols-outlined text-[18px]">filter_list</span>
+                  <span>Trier / filtrer</span>
+                  {hasActiveFilters && (
+                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-tertiary-fixed-dim" />
+                  )}
                 </button>
+                <GhostButton
+                  onClick={resetFilters}
+                  disabled={!hasActiveFilters}
+                  className="!px-2 !py-1 !text-[11px] leading-tight w-full"
+                >
+                  Réinitialiser
+                </GhostButton>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
-                {composerTargets.map(({ icon, label, to, color }) => (
-                  <button
-                    key={to + label}
-                    className="flex items-center justify-center sm:justify-start gap-2 py-2 px-2.5 rounded-lg hover:bg-surface-container-low transition-colors text-on-surface-variant font-headline text-label-md"
-                    onClick={() => navigate(to)} type="button"
-                  >
-                    <span className={`material-symbols-outlined text-[20px] ${color}`}>{icon}</span>
-                    <span className="truncate">{label.split(' ')[0]}</span>
-                  </button>
-                ))}
-              </div>
-            </SectionCard>
+            </div>
+          )}
+
+          {filtersOpen && (
+            <div id="home-feed-filters">
+              <SectionCard className="p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-headline text-label-md text-on-surface">
+                    Trier et filtrer les contributions
+                  </h3>
+                  <span className="font-body text-body-sm text-outline">
+                    {filteredFeed.length} contribution(s)
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  <label className="block relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
+                    <StitchInput
+                      value={filterQuery}
+                      onChange={(e) => setFilterQuery(e.target.value)}
+                      placeholder="Rechercher un titre, une description ou un auteur…"
+                      aria-label="Rechercher une contribution"
+                      className="!pl-9"
+                    />
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="sm:col-span-2 space-y-1.5" ref={filterMenuRef}>
+                      <span className="block font-headline text-label-sm text-on-surface-variant uppercase tracking-wider">Types et thèmes</span>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setFilterMenuOpen((v) => !v)}
+                          aria-expanded={filterMenuOpen}
+                          aria-haspopup="true"
+                          className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 bg-surface-container-low hover:bg-surface-container rounded-lg font-body text-body-md text-on-surface transition-colors"
+                        >
+                          <span className={filterTypes.length === 0 && filterThemes.length === 0 ? 'text-outline' : ''}>{filterSelectionLabel}</span>
+                          <span className="text-[10px] text-outline">▼</span>
+                        </button>
+                        {filterMenuOpen && (
+                          <div className="absolute z-30 mt-1 w-full max-h-64 overflow-y-auto rounded-lg border border-surface-container bg-surface-container-lowest p-2 space-y-3 shadow-modal">
+                            <div>
+                              <p className="px-1.5 font-headline text-[11px] uppercase tracking-wider text-outline">Types</p>
+                              {FEED_TYPE_OPTIONS.map((opt) => (
+                                <label key={opt.kind} className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-surface-container cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={filterTypes.includes(opt.kind)}
+                                    onChange={() => toggleType(opt.kind)}
+                                    className="h-3.5 w-3.5 accent-primary"
+                                  />
+                                  <span className="font-body text-body-sm text-on-surface">{opt.label}</span>
+                                </label>
+                              ))}
+                              <p className="px-1.5 pt-0.5 font-body text-[11px] text-outline">Aucun type coché = tous les types.</p>
+                            </div>
+                            <div>
+                              <p className="px-1.5 font-headline text-[11px] uppercase tracking-wider text-outline">
+                                Thèmes{filterThemes.length > 0 ? ` (${filterThemes.length})` : ''}
+                              </p>
+                              {themesOnlyForVotes ? (
+                                <p className="px-1.5 font-body text-body-sm text-outline">Les votes ne sont pas associés à des thèmes.</p>
+                              ) : themeGroups.length === 0 ? (
+                                <p className="px-1.5 font-body text-body-sm text-outline">Aucun thème disponible pour cette sélection.</p>
+                              ) : themeGroups.map((group) => (
+                                <div key={group.scope} className="mt-1.5 first:mt-0">
+                                  <p className="px-1.5 font-headline text-[11px] uppercase tracking-wider text-on-surface-variant">{group.label}</p>
+                                  {group.themes.map((t) => (
+                                    <label key={t.id} className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-surface-container cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterThemes.includes(t.slug)}
+                                        onChange={() => toggleTheme(t.slug)}
+                                        className="h-3.5 w-3.5 accent-secondary"
+                                      />
+                                      <span className="font-body text-body-sm text-on-surface">{t.label}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <label className="block space-y-1.5">
+                      <span className="block font-headline text-label-sm text-on-surface-variant uppercase tracking-wider">Tri</span>
+                      <StitchSelect
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                        aria-label="Trier les contributions"
+                      >
+                        <option value="date_desc">Plus récentes</option>
+                        <option value="date_asc">Plus anciennes</option>
+                        <option value="alpha">A → Z</option>
+                        <option value="rating">Mieux notées</option>
+                      </StitchSelect>
+                    </label>
+                  </div>
+                </div>
+              </SectionCard>
+            </div>
           )}
 
           {loading ? <StitchSpinner /> : feed.length === 0 ? (
-            <SectionCard className="p-8 text-center">
+            <SectionCard className="p-8 text-center space-y-3">
               <p className="font-body text-body-md text-on-surface-variant">
-                Aucune contribution pour l'instant. Soyez le premier agent à partager une idée !
+                {hasActiveFilters
+                  ? 'Aucune contribution ne correspond à ces critères.'
+                  : "Aucune contribution pour l'instant. Soyez le premier agent à partager une idée !"}
               </p>
+              {hasActiveFilters && (
+                <GhostButton onClick={resetFilters} icon="filter_list_off" className="!text-label-sm">
+                  Réinitialiser les filtres
+                </GhostButton>
+              )}
             </SectionCard>
           ) : feed.map((item) => {
             switch (item.kind) {
@@ -578,44 +828,49 @@ export default function Home() {
             </SectionCard>
           )}
 
-          <div className="bg-surface-container-low rounded-2xl p-5 space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary shrink-0">
-                <span className="material-symbols-outlined text-[18px]">menu_book</span>
+          <div className="bg-gradient-to-br from-primary via-primary-container to-secondary rounded-2xl p-6 text-on-primary shadow-card flex flex-col gap-4 relative overflow-hidden">
+            <div className="relative z-10 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[22px]">lightbulb</span>
+                <span className="font-headline text-label-md tracking-wider uppercase opacity-90">Co-construction Ivry</span>
               </div>
-              <div>
-                <h4 className="font-headline text-label-md text-on-surface">Kit de l'IAmbassadeur</h4>
-                <p className="font-body text-body-sm text-outline text-[12px]">Base documentaire collective</p>
-              </div>
+              <h4 className="font-headline text-headline-md font-bold leading-tight">Vous avez lu une étude percutante ?</h4>
+              <p className="font-body text-body-sm opacity-90">
+                Chaque ressource alimente le corpus d'apprentissage du Comité Éthique municipal et des IAmbassadeurs d'Ivry.
+              </p>
+              {canInteract && (
+                <Link
+                  to="/ressources"
+                  state={{ openCreateResource: true }}
+                  className="mt-2 w-full py-2.5 px-4 bg-surface-container-lowest text-primary hover:bg-surface-bright rounded-full font-headline text-label-md font-bold shadow-sm transition-all flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-[18px]">cloud_upload</span>
+                  <span>Soumettre un document</span>
+                </Link>
+              )}
             </div>
-            <p className="font-body text-body-sm text-on-surface-variant">
-              Besoin d'un argumentaire pour sensibiliser vos collègues de service ? Explorez les ressources validées par le collectif.
-            </p>
-            <Link
-              to="/ressources"
-              className="w-full py-2 px-3 bg-surface-container-lowest hover:bg-surface-container-high text-primary font-headline text-label-md rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm"
-            >
-              <span className="material-symbols-outlined text-[18px]">download</span>
-              <span>Parcourir les ressources</span>
-            </Link>
+            <svg className="absolute -right-10 -bottom-10 opacity-15 w-48 h-48 pointer-events-none" fill="currentColor" viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="80" />
+              <circle cx="100" cy="100" r="50" />
+            </svg>
           </div>
         </aside>
       </div>
 
       {/* Modale de contribution : renvoie vers le module adapté */}
-      <Modal open={composerOpen} onClose={() => setComposerOpen(false)} title="Exprimez une contribution municipale" icon="edit_note">
+      <Modal open={composerOpen} onClose={() => setComposerOpen(false)} title="Nouvelle contribution" icon="edit_note">
         <p className="font-body text-body-md text-on-surface-variant">
           Choisissez le type de contribution : vous serez redirigé vers le formulaire dédié du module.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          {composerTargets.map(({ icon, label, to, color }) => (
+          {composerTargets.map(({ icon, full, to, color }) => (
             <button
-              key={to + label}
+              key={to + full}
               className="flex items-center gap-3 p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-left"
               onClick={() => { setComposerOpen(false); navigate(to); }} type="button"
             >
               <span className={`material-symbols-outlined text-[24px] ${color}`}>{icon}</span>
-              <span className="font-headline text-label-md text-on-surface">{label}</span>
+              <span className="font-headline text-label-md text-on-surface">{full}</span>
             </button>
           ))}
         </div>

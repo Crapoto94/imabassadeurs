@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Pagination from '../components/Pagination';
 import CommentThread from '../components/CommentThread';
 import AiPanel from '../components/AiPanel';
@@ -218,6 +218,8 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
 
 export default function Resources() {
   const { canInteract } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [items, setItems] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState(0);
@@ -230,6 +232,13 @@ export default function Resources() {
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => { getThemes({ scope: 'resource' }).then(setThemes).catch(() => {}); }, []);
+
+  const openCreateResource = Boolean((location.state as { openCreateResource?: boolean } | null)?.openCreateResource);
+  useEffect(() => {
+    if (!openCreateResource) return;
+    setModalOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [openCreateResource, location.pathname, navigate]);
 
   async function load() {
     setLoading(true); setError('');
@@ -343,32 +352,6 @@ export default function Resources() {
               </div>
             </SectionCard>
           )}
-
-          <div className="bg-gradient-to-br from-primary via-primary-container to-secondary rounded-2xl p-6 text-on-primary shadow-card flex flex-col gap-4 relative overflow-hidden">
-            <div className="relative z-10 flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[22px]">lightbulb</span>
-                <span className="font-headline text-label-md tracking-wider uppercase opacity-90">Co-construction Ivry</span>
-              </div>
-              <h4 className="font-headline text-headline-md font-bold leading-tight">Vous avez lu une étude percutante ?</h4>
-              <p className="font-body text-body-sm opacity-90">
-                Chaque ressource alimente le corpus d'apprentissage du Comité Éthique municipal et des IAmbassadeurs d'Ivry.
-              </p>
-              {canInteract && (
-                <button
-                  className="mt-2 w-full py-2.5 px-4 bg-surface-container-lowest text-primary hover:bg-surface-bright rounded-full font-headline text-label-md font-bold shadow-sm transition-all flex items-center justify-center gap-2"
-                  onClick={() => setModalOpen(true)} type="button"
-                >
-                  <span className="material-symbols-outlined text-[18px]">cloud_upload</span>
-                  <span>Soumettre un document</span>
-                </button>
-              )}
-            </div>
-            <svg className="absolute -right-10 -bottom-10 opacity-15 w-48 h-48 pointer-events-none" fill="currentColor" viewBox="0 0 200 200">
-              <circle cx="100" cy="100" r="80" />
-              <circle cx="100" cy="100" r="50" />
-            </svg>
-          </div>
         </aside>
       </div>
 

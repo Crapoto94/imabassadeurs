@@ -65,7 +65,7 @@ export default function Layout() {
               <button
                 className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 bg-secondary hover:bg-secondary-container text-on-secondary rounded-full font-headline text-label-md shadow-sm transition-all"
                 type="button"
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/', { state: { openComposer: true } })}
               >
                 <span className="material-symbols-outlined text-[16px]">add_circle</span>
                 <span>Contribuer</span>
