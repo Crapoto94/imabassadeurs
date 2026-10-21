@@ -48,6 +48,9 @@ async function list(user, query) {
     params.push(query.level);
     where += ` AND r.level = $${params.length}`;
   }
+  if (query.mandatory === 'true' || query.mandatory === true) {
+    where += ' AND r.is_mandatory = true';
+  }
   params.push(limit, offset);
   let orderBy = 'r.created_at DESC';
   if (query.sort === 'level') orderBy = `CASE r.level WHEN 'avance' THEN 0 WHEN 'intermediaire' THEN 1 ELSE 2 END, r.created_at DESC`;

@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Pagination from '../components/Pagination';
 import CommentThread from '../components/CommentThread';
@@ -13,8 +13,109 @@ import {
   Avatar, LevelBadge, MandatoryBadge, LEVELS, LEVEL_META, Modal, PrimaryButton, SectionCard, StitchAlert, StitchEmpty,
   StitchField, StitchInput, StitchSelect, StitchSpinner, StitchTextarea, timeAgo, useToast,
 } from '../components/stitch';
-import { ThemePicker, ThemeChips } from '../components/Themes';
+import { ThemePicker } from '../components/Themes';
 import type { Resource, Theme } from '../types';
+
+function ResourceTags({ res, isVideo }: { res: Resource; isVideo: boolean }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [visibleCount, setVisibleCount] = useState(3);
+  const [overflow, setOverflow] = useState(false);
+  const themeKey = (res.themes || []).map((theme) => theme.id).join(',');
+
+  const tagCls = 'inline-flex h-5 items-center gap-1 px-2 rounded-full font-headline text-label-sm leading-none whitespace-nowrap';
+  const tags: { key: string; node: ReactNode }[] = [
+    {
+      key: 'kind',
+      node: (
+        <span className={`${tagCls} bg-surface-container text-on-surface-variant`}>
+          <span className={`material-symbols-outlined text-[12px] ${res.kind === 'pdf' ? 'text-error' : isVideo ? 'text-tertiary' : 'text-secondary'}`}>
+            {res.kind === 'pdf' ? 'picture_as_pdf' : isVideo ? 'play_circle' : 'open_in_new'}
+          </span>
+          <span>{res.kind === 'pdf' ? 'PDF' : isVideo ? 'Vidéo' : 'Lien'}</span>
+        </span>
+      ),
+    },
+    ...(res.level ? [{ key: 'level', node: <LevelBadge level={res.level} className="!h-5 !px-2 !py-0 !leading-none !normal-case !tracking-normal !text-label-sm" /> }] : []),
+    ...(res.is_mandatory ? [{ key: 'mandatory', node: <MandatoryBadge className="!h-5 !px-2 !py-0 !leading-none !normal-case !tracking-normal !text-label-sm" /> }] : []),
+    ...(res.themes || []).map((theme) => ({
+      key: `theme-${theme.id}`,
+      node: (
+        <span className={`${tagCls} bg-surface-container text-on-surface-variant`}>
+          <span className="material-symbols-outlined text-[12px] text-secondary">sell</span>
+          <span>{theme.label}</span>
+        </span>
+      ),
+    })),
+  ];
+
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const measure = measureRef.current;
+    if (!wrap || !measure) return;
+
+    const compute = () => {
+      const nodes = Array.from(measure.querySelectorAll<HTMLElement>('[data-tag]'));
+      if (!nodes.length) {
+        setVisibleCount(0);
+        setOverflow(false);
+        return;
+      }
+      const available = wrap.clientWidth;
+      const gap = 6;
+      const moreWidth = 28;
+      let used = 0;
+      let count = 0;
+      for (const node of nodes) {
+        const width = node.offsetWidth;
+        const next = used + (count ? gap : 0) + width;
+        if (next > available) break;
+        used = next;
+        count++;
+      }
+      if (count < nodes.length) {
+        while (count > 0 && used + gap + moreWidth > available) {
+          count--;
+          used = nodes.slice(0, count).reduce((sum, node, i) => sum + (i ? gap : 0) + node.offsetWidth, 0);
+        }
+      }
+      setVisibleCount(count);
+      setOverflow(count < nodes.length);
+    };
+
+    compute();
+    const observer = new ResizeObserver(compute);
+    observer.observe(wrap);
+    return () => observer.disconnect();
+  }, [res.kind, res.level, res.is_mandatory, themeKey, isVideo]);
+
+  return (
+    <div ref={wrapRef} className="relative flex min-w-0 flex-1 items-center">
+      <div ref={measureRef} aria-hidden className="pointer-events-none invisible absolute left-0 top-0 flex items-center gap-1.5 whitespace-nowrap">
+        {tags.map((tag) => <span key={tag.key} data-tag className="flex items-center">{tag.node}</span>)}
+      </div>
+      <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+        {tags.slice(0, visibleCount).map((tag) => (
+          <span key={tag.key} className="flex shrink-0 items-center">{tag.node}</span>
+        ))}
+      </div>
+      {overflow && (
+        <div className="group relative ml-1.5 shrink-0">
+          <button
+            type="button"
+            aria-label="Afficher tous les tags"
+            className="flex h-5 min-w-5 items-center justify-center rounded-full bg-surface-container px-1 font-headline text-label-sm text-on-surface-variant hover:bg-surface-container-high"
+          >
+            ...
+          </button>
+          <div className="invisible absolute right-0 top-full z-20 flex w-max max-w-[min(16rem,80vw)] flex-wrap justify-end gap-1.5 rounded-lg border border-surface-container bg-surface-container-lowest p-2 shadow-modal group-hover:visible group-focus-within:visible">
+            {tags.map((tag) => <span key={tag.key} className="flex items-center">{tag.node}</span>)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ResourceCard({ res, onChanged }: { res: Resource; onChanged: () => void }) {
   const { canInteract } = useAuth();
@@ -35,25 +136,11 @@ function ResourceCard({ res, onChanged }: { res: Resource; onChanged: () => void
       {Toast}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="min-w-0 flex-1 flex flex-col gap-2.5">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Avatar name={res.proposed_by_name} size={28} />
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-headline text-label-md text-on-surface truncate">{res.proposed_by_name}</span>
-                <span className="text-outline font-body text-body-sm">•</span>
-                <span className="font-body text-body-sm text-outline whitespace-nowrap">{timeAgo(res.created_at)}</span>
-              </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface-container text-on-surface-variant rounded-full font-headline text-label-sm">
-                  <span className={`material-symbols-outlined text-[14px] ${res.kind === 'pdf' ? 'text-error' : isVideo ? 'text-tertiary' : 'text-secondary'}`}>
-                    {res.kind === 'pdf' ? 'picture_as_pdf' : isVideo ? 'play_circle' : 'open_in_new'}
-                  </span>
-                  <span>{res.kind === 'pdf' ? 'PDF' : isVideo ? 'Vidéo' : 'Lien'}</span>
-                </span>
-                <LevelBadge level={res.level} />
-                {res.is_mandatory && <MandatoryBadge />}
-              </div>
-            </div>
+          <div className="flex items-center gap-2 min-w-0">
+            <Avatar name={res.proposed_by_name} size={20} />
+            <span className="max-w-[9rem] shrink-0 truncate font-headline text-label-sm text-on-surface">{res.proposed_by_name}</span>
+            <ResourceTags res={res} isVideo={isVideo} />
+            <span className="shrink-0 whitespace-nowrap font-body text-[11px] text-outline">• {timeAgo(res.created_at)}</span>
           </div>
 
           <div className="flex gap-3">
@@ -65,9 +152,21 @@ function ResourceCard({ res, onChanged }: { res: Resource; onChanged: () => void
                 <Link to={`/ressources/${res.id}`}>{res.title}</Link>
               </h2>
               <p className="font-body text-body-sm text-on-surface-variant mt-1 line-clamp-2">{res.description}</p>
-              <ThemeChips themes={res.themes} className="mt-1.5" />
             </div>
           </div>
+
+          {res.kind === 'link' && res.url && (
+            <a
+              href={res.url}
+              target="_blank"
+              rel="noreferrer"
+              title={res.url}
+              className="inline-flex max-w-full items-center gap-1.5 font-body text-body-sm text-primary hover:underline"
+            >
+              <span className="material-symbols-outlined shrink-0 text-[14px]">open_in_new</span>
+              <span className="truncate">{res.url}</span>
+            </a>
+          )}
 
           {isVideo && res.url && (
             <div className="w-[70%]">
@@ -77,13 +176,15 @@ function ResourceCard({ res, onChanged }: { res: Resource; onChanged: () => void
         </div>
 
         <aside className="flex shrink-0 flex-row flex-wrap items-center justify-end gap-2 border-t border-surface-container-low pt-2 sm:w-36 sm:flex-col sm:items-end sm:justify-start sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
-          <div className="flex flex-col items-end gap-0.5">
+          <div className="flex items-center gap-2">
+            {canInteract && (
+              <StarRating value={Math.round(res.my_rating || res.avg_stars || 0)} size={14} onRate={rate} />
+            )}
             <span className="flex items-center gap-1 font-headline text-label-sm text-on-surface-variant" title={`${res.ratings_count} avis`}>
               <span className="material-symbols-outlined text-[15px] text-secondary filled">star</span>
               {res.avg_stars ? Number(res.avg_stars).toFixed(1) : '—'}
               <span className="text-outline">({res.ratings_count})</span>
             </span>
-            <StarRating value={Math.round(res.my_rating || res.avg_stars || 0)} size={14} onRate={canInteract ? rate : undefined} />
           </div>
           <div className="flex items-center gap-1 sm:w-full sm:flex-col sm:items-stretch">
             {canInteract && (
@@ -233,9 +334,11 @@ export default function Resources() {
   const [sort, setSort] = useState<'created' | 'level' | 'rating'>('created');
   const [themeFilter, setThemeFilter] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
+  const [mandatoryOnly, setMandatoryOnly] = useState(false);
   const [themes, setThemes] = useState<Theme[]>([]);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => { getThemes({ scope: 'resource' }).then(setThemes).catch(() => {}); }, []);
 
@@ -249,10 +352,26 @@ export default function Resources() {
   async function load() {
     setLoading(true); setError('');
     try {
-      setItems(await getResources({ limit, offset, search: search || undefined, sort, theme: themeFilter || undefined, level: levelFilter || undefined }));
+      setItems(await getResources({
+        limit, offset, search: search || undefined, sort,
+        theme: themeFilter || undefined,
+        level: levelFilter || undefined,
+        mandatory: mandatoryOnly || undefined,
+      }));
     } catch (e) { setError(errMsg(e)); } finally { setLoading(false); }
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [offset, sort, themeFilter, levelFilter]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [offset, sort, themeFilter, levelFilter, mandatoryOnly, search]);
+
+  const hasActiveFilters = search.trim() !== '' || sort !== 'created' || themeFilter !== '' || levelFilter !== '' || mandatoryOnly;
+
+  function resetFilters() {
+    setSearch('');
+    setSort('created');
+    setThemeFilter('');
+    setLevelFilter('');
+    setMandatoryOnly(false);
+    setOffset(0);
+  }
 
   const top = useMemo(
     () => [...items].filter((r) => r.avg_stars).sort((a, b) => Number(b.avg_stars) - Number(a.avg_stars)).slice(0, 3),
@@ -285,58 +404,95 @@ export default function Resources() {
         <section className="xl:col-span-8 flex flex-col gap-5">
           {/* Filtre */}
           <SectionCard className="p-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-[20px]">filter_list</span>
-              <span className="font-headline text-headline-sm text-on-surface">Filtrer les ressources</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setFiltersOpen((v) => !v)}
+                aria-expanded={filtersOpen}
+                aria-controls="resources-filters"
+                className="flex min-w-0 items-center gap-2 text-left"
+              >
+                <span className="material-symbols-outlined text-primary text-[20px]">filter_list</span>
+                <span className="font-headline text-headline-sm text-on-surface">Filtrer les ressources</span>
+                <span className={`material-symbols-outlined text-[24px] text-primary transition-transform ${filtersOpen ? 'rotate-180' : ''}`}>
+                  arrow_drop_down
+                </span>
+              </button>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="font-body text-body-sm text-outline hover:text-primary transition-colors"
+                >
+                  Réinitialiser
+                </button>
+              )}
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="relative w-full sm:w-56">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">filter_list</span>
-                <input
-                  className="w-full pl-9 pr-3 py-1.5 bg-surface-container-low rounded-full font-body text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest shadow-inner transition-all"
-                  placeholder="Filtrer en direct…" value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (setOffset(0), load())}
-                />
+            {filtersOpen && (
+              <div id="resources-filters" className="flex items-center gap-2 flex-wrap">
+                <div className="relative w-full sm:w-56">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">filter_list</span>
+                  <input
+                    className="w-full pl-9 pr-3 py-1.5 bg-surface-container-low rounded-full font-body text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest shadow-inner transition-all"
+                    placeholder="Filtrer en direct…" value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (setOffset(0), load())}
+                  />
+                </div>
+                <label className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-outline text-[18px]">sort</span>
+                  <StitchSelect
+                    className="!w-auto !py-1.5 !rounded-full !bg-surface-container-low"
+                    value={sort}
+                    onChange={(e) => { setSort(e.target.value as any); setOffset(0); }}
+                    aria-label="Trier les ressources"
+                  >
+                    <option value="created">Plus récentes</option>
+                    <option value="level">Par niveau</option>
+                    <option value="rating">Mieux notées</option>
+                  </StitchSelect>
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-outline text-[18px]">sell</span>
+                  <StitchSelect
+                    className="!w-auto !py-1.5 !rounded-full !bg-surface-container-low"
+                    value={themeFilter}
+                    onChange={(e) => { setThemeFilter(e.target.value); setOffset(0); }}
+                    aria-label="Filtrer par thème"
+                  >
+                    <option value="">Tous les thèmes</option>
+                    {themes.map((t) => <option key={t.id} value={t.slug}>{t.label}</option>)}
+                  </StitchSelect>
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-outline text-[18px]">signal_cellular_alt</span>
+                  <StitchSelect
+                    className="!w-auto !py-1.5 !rounded-full !bg-surface-container-low"
+                    value={levelFilter}
+                    onChange={(e) => { setLevelFilter(e.target.value); setOffset(0); }}
+                    aria-label="Filtrer par niveau de lecture"
+                  >
+                    <option value="">Tous les niveaux</option>
+                    {LEVELS.map((k) => <option key={k} value={k}>{LEVEL_META[k].label}</option>)}
+                  </StitchSelect>
+                </label>
+                <button
+                  type="button"
+                  aria-pressed={mandatoryOnly}
+                  onClick={() => { setMandatoryOnly((v) => !v); setOffset(0); }}
+                  className={`flex h-[33px] w-fit shrink-0 items-center gap-1.5 !py-0 px-3.5 rounded-full border-0 font-body text-body-md outline-none transition-colors ${
+                    mandatoryOnly
+                      ? 'bg-error/15 text-error hover:bg-error/20'
+                      : 'bg-surface-container-low text-on-surface hover:bg-surface-container'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    {mandatoryOnly ? 'check_box' : 'check_box_outline_blank'}
+                  </span>
+                  Parcours obligatoire
+                </button>
               </div>
-              <label className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-outline text-[18px]">sort</span>
-                <StitchSelect
-                  className="!w-auto !py-1.5 !rounded-full !bg-surface-container-low"
-                  value={sort}
-                  onChange={(e) => { setSort(e.target.value as any); setOffset(0); }}
-                  aria-label="Trier les ressources"
-                >
-                  <option value="created">Plus récentes</option>
-                  <option value="level">Par niveau</option>
-                  <option value="rating">Mieux notées</option>
-                </StitchSelect>
-              </label>
-              <label className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-outline text-[18px]">sell</span>
-                <StitchSelect
-                  className="!w-auto !py-1.5 !rounded-full !bg-surface-container-low"
-                  value={themeFilter}
-                  onChange={(e) => { setThemeFilter(e.target.value); setOffset(0); }}
-                  aria-label="Filtrer par thème"
-                >
-                  <option value="">Tous les thèmes</option>
-                  {themes.map((t) => <option key={t.id} value={t.slug}>{t.label}</option>)}
-                </StitchSelect>
-              </label>
-              <label className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-outline text-[18px]">signal_cellular_alt</span>
-                <StitchSelect
-                  className="!w-auto !py-1.5 !rounded-full !bg-surface-container-low"
-                  value={levelFilter}
-                  onChange={(e) => { setLevelFilter(e.target.value); setOffset(0); }}
-                  aria-label="Filtrer par niveau de lecture"
-                >
-                  <option value="">Tous les niveaux</option>
-                  {LEVELS.map((k) => <option key={k} value={k}>{LEVEL_META[k].label}</option>)}
-                </StitchSelect>
-              </label>
-            </div>
+            )}
           </SectionCard>
 
           {error && <StitchAlert kind="error">{error}</StitchAlert>}
