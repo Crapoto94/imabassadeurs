@@ -3,11 +3,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { castVote, getExperiments, getPrinciples, getResources, getRisks, getStats, getThemes, getVotes, joinExperiment } from '../api/endpoints';
 import { useAuth } from '../hooks/useAuth';
 import CommentThread from '../components/CommentThread';
-import VideoEmbed, { detectVideo } from '../components/VideoEmbed';
-import PdfThumb from '../components/PdfThumb';
-import { API_URL } from '../api/client';
+import ResourceCard from '../components/ResourceCard';
 import {
-  Avatar, GhostButton, LevelBadge, MandatoryBadge, Modal, PrimaryButton, RoleBadge, SectionCard, StitchInput,
+  Avatar, GhostButton, Modal, PrimaryButton, RoleBadge, SectionCard, StitchInput,
   StitchSelect, StitchSpinner, timeAgo, useToast,
 } from '../components/stitch';
 import type { Experiment, Principle, Resource, Risk, Theme, VoteSession } from '../types';
@@ -286,75 +284,6 @@ function RiskCard({ risk }: { risk: Risk }) {
   );
 }
 
-function ResourceCard({ res }: { res: Resource }) {
-  const [open, setOpen] = useState(false);
-  const isVideo = res.kind === 'link' && !!res.url && !!detectVideo(res.url);
-  return (
-    <SectionCard className="p-4 space-y-3 hover:shadow-card-hover transition-shadow">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <Avatar name={res.proposed_by_name} size={36} />
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-headline text-headline-sm text-on-surface">{res.proposed_by_name}</h3>
-              <span className="text-outline font-body text-body-sm">•</span>
-              <span className="font-body text-body-sm text-outline">{timeAgo(res.created_at)}</span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary font-headline text-label-sm">
-                <span className="material-symbols-outlined text-[14px]">{res.kind === 'pdf' ? 'picture_as_pdf' : isVideo ? 'play_circle' : 'link'}</span>
-                <span>{res.kind === 'pdf' ? 'Document PDF' : isVideo ? 'Vidéo' : 'Ressource en ligne'}</span>
-              </span>
-              <LevelBadge level={res.level} />
-              {res.is_mandatory && <MandatoryBadge />}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="flex gap-3">
-        {res.kind === 'pdf' && res.file_path && (
-          <PdfThumb src={`${API_URL}/uploads/${res.file_path}`} to={`/ressources/${res.id}`} />
-        )}
-        <div className="min-w-0 flex-1 space-y-2">
-          <h4 className="font-headline text-headline-sm text-primary">
-            <Link to={`/ressources/${res.id}`} className="hover:underline">{res.title}</Link>
-          </h4>
-          <p className="font-body text-body-sm text-on-surface-variant line-clamp-2">{res.description}</p>
-        </div>
-      </div>
-      {isVideo && res.url && <VideoEmbed url={res.url} />}
-      <div className="flex items-center justify-between text-outline font-body text-body-sm pt-1">
-        <span className="flex items-center gap-1 text-on-surface-variant font-medium">
-          <span className="material-symbols-outlined text-[16px] text-secondary filled">star</span>
-          {res.avg_stars ? `${Number(res.avg_stars).toFixed(1)}/5` : 'Pas encore noté'} ({res.ratings_count})
-        </span>
-        <span>{res.comments_count} commentaire(s)</span>
-      </div>
-      <div className="flex items-center justify-between pt-2 border-t border-surface-container-low">
-        <button
-          className="flex-1 py-2 px-3 rounded-lg hover:bg-surface-container-low text-on-surface-variant font-headline text-label-md flex items-center justify-center gap-2 transition-colors"
-          onClick={() => setOpen((v) => !v)} type="button"
-        >
-          <span className="material-symbols-outlined text-[20px]">chat_bubble_outline</span>
-          <span>Débattre</span>
-        </button>
-        <Link
-          to={`/ressources/${res.id}`}
-          className="flex-1 py-2 px-3 rounded-lg hover:bg-surface-container-low text-on-surface-variant font-headline text-label-md flex items-center justify-center gap-2 transition-colors"
-        >
-          <span className="material-symbols-outlined text-[20px]">open_in_new</span>
-          <span>Consulter</span>
-        </Link>
-      </div>
-      {open && (
-        <div className="pt-3 bg-surface-container-low/50 p-3 rounded-xl">
-          <CommentThread entityType="resource" entityId={res.id} />
-        </div>
-      )}
-    </SectionCard>
-  );
-}
-
 // ── Page d'accueil : fil d'actualité 3 colonnes ──
 
 export default function Home() {
@@ -573,70 +502,63 @@ export default function Home() {
         <div className="lg:col-span-6 space-y-5">
           {/* Composer */}
           {canInteract && (
-            <div className="flex items-stretch gap-2.5">
-              <SectionCard className="min-w-0 flex-1 p-3 sm:p-3.5 space-y-1.5">
-                <div className="flex flex-col items-center gap-0.5">
-                  <PrimaryButton icon="add_circle" onClick={() => setComposerOpen(true)} className="py-1.5">
-                    Proposer une contribution
-                  </PrimaryButton>
-                  <p className="font-body text-body-sm text-on-surface-variant text-[12px] text-center">
-                    Partagez une idée, un risque, un document ou un vote, {firstName}.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
-                  {composerTargets.map(({ icon, label, to, color }) => (
-                    <button
-                      key={to + label}
-                      className="flex flex-col items-center justify-center gap-0.5 py-1 px-1.5 rounded-lg hover:bg-surface-container-low transition-colors text-on-surface-variant text-center"
-                      onClick={() => navigate(to)} type="button"
-                    >
-                      <span className={`material-symbols-outlined text-[18px] ${color}`}>{icon}</span>
-                      <span className="font-headline text-label-sm leading-tight">{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </SectionCard>
-              <div className="flex w-[24%] max-w-[140px] shrink-0 flex-col justify-center gap-1.5">
+            <SectionCard className="p-3 sm:p-3.5 space-y-1.5">
+              <div className="flex flex-col items-center gap-0.5">
+                <PrimaryButton icon="add_circle" onClick={() => setComposerOpen(true)} className="py-1.5">
+                  Proposer une contribution
+                </PrimaryButton>
+                <p className="font-body text-body-sm text-on-surface-variant text-[12px] text-center">
+                  Partagez une idée, un risque, un document ou un vote, {firstName}.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+                {composerTargets.map(({ icon, label, to, color }) => (
+                  <button
+                    key={to + label}
+                    className="flex flex-col items-center justify-center gap-0.5 py-1 px-1.5 rounded-lg hover:bg-surface-container-low transition-colors text-on-surface-variant text-center"
+                    onClick={() => navigate(to)} type="button"
+                  >
+                    <span className={`material-symbols-outlined text-[18px] ${color}`}>{icon}</span>
+                    <span className="font-headline text-label-sm leading-tight">{label}</span>
+                  </button>
+                ))}
+              </div>
+            </SectionCard>
+          )}
+
+          <SectionCard className="p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <button
                   type="button"
                   onClick={() => { setFiltersOpen((v) => !v); setFilterMenuOpen(false); }}
                   aria-expanded={filtersOpen}
                   aria-controls="home-feed-filters"
-                  className={`relative inline-flex w-full items-center justify-center gap-1 px-2 py-2 rounded-full font-headline text-[11px] sm:text-label-md leading-tight shadow-sm transition-colors ${
-                    filtersOpen || hasActiveFilters
-                      ? 'bg-primary text-on-primary hover:bg-primary-container'
-                      : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
-                  }`}
+                  className="flex min-w-0 items-center gap-2 text-left"
                 >
-                  <span className="material-symbols-outlined text-[18px]">filter_list</span>
-                  <span>Trier / filtrer</span>
-                  {hasActiveFilters && (
-                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-tertiary-fixed-dim" />
-                  )}
-                </button>
-                <GhostButton
-                  onClick={resetFilters}
-                  disabled={!hasActiveFilters}
-                  className="!px-2 !py-1 !text-[11px] leading-tight w-full"
-                >
-                  Réinitialiser
-                </GhostButton>
-              </div>
-            </div>
-          )}
-
-          {filtersOpen && (
-            <div id="home-feed-filters">
-              <SectionCard className="p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="font-headline text-label-md text-on-surface">
-                    Trier et filtrer les contributions
-                  </h3>
-                  <span className="font-body text-body-sm text-outline">
-                    {filteredFeed.length} contribution(s)
+                  <span className={`material-symbols-outlined text-[24px] text-primary transition-transform ${filtersOpen ? 'rotate-180' : ''}`}>
+                    arrow_drop_down
                   </span>
-                </div>
-                <div className="space-y-3">
+                  <span className="font-headline text-headline-sm text-on-surface">Filtrer les ressources</span>
+                </button>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="font-body text-body-sm text-outline hover:text-primary transition-colors"
+                  >
+                    Réinitialiser
+                  </button>
+                )}
+              </div>
+              {filtersOpen && (
+                <span className="font-body text-body-sm text-outline">
+                  {filteredFeed.length} contribution(s)
+                </span>
+              )}
+            </div>
+            {filtersOpen && (
+              <div id="home-feed-filters" className="space-y-3">
                   <label className="block relative">
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
                     <StitchInput
@@ -722,9 +644,8 @@ export default function Home() {
                     </label>
                   </div>
                 </div>
-              </SectionCard>
-            </div>
-          )}
+            )}
+          </SectionCard>
 
           {loading ? <StitchSpinner /> : feed.length === 0 ? (
             <SectionCard className="p-8 text-center space-y-3">
@@ -744,7 +665,7 @@ export default function Home() {
               case 'experiment': return <ExperimentCard key={`e${item.data.id}`} exp={item.data} onJoined={load} />;
               case 'vote': return <VoteCard key={`v${item.data.id}`} vote={item.data} onVoted={load} />;
               case 'risk': return <RiskCard key={`r${item.data.id}`} risk={item.data} />;
-              case 'resource': return <ResourceCard key={`d${item.data.id}`} res={item.data} />;
+              case 'resource': return <ResourceCard key={`d${item.data.id}`} res={item.data} onChanged={load} />;
             }
           })}
         </div>
