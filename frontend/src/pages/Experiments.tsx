@@ -48,6 +48,12 @@ function ExperimentCard({ exp, onChanged }: { exp: Experiment; onChanged: () => 
               {exp.status === 'ongoing' && <span className="w-1.5 h-1.5 rounded-full bg-tertiary-fixed-dim animate-pulse" />}
               {meta.label}
             </span>
+            {exp.attachments_count ? (
+              <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-headline text-label-sm flex items-center gap-1" title="Documents joints">
+                <span className="material-symbols-outlined text-[14px]">attach_file</span>
+                {exp.attachments_count}
+              </span>
+            ) : null}
           </div>
           <h2 className="font-headline text-headline-sm lg:text-headline-md text-primary tracking-tight">
             <Link to={`/experimentations/${exp.id}`} className="hover:underline">{exp.title}</Link>
@@ -223,6 +229,7 @@ export default function Experiments() {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => { getThemes({ scope: 'experiment' }).then(setThemes).catch(() => {}); }, []);
 
@@ -233,6 +240,13 @@ export default function Experiments() {
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [offset, status, themeFilter]);
 
+  const hasActiveFilters = status !== '' || themeFilter !== '';
+  function resetFilters() {
+    setStatus('');
+    setThemeFilter('');
+    setOffset(0);
+  }
+
   const counts = useMemo(() => {
     const c: Record<string, number> = { planned: 0, ongoing: 0, completed: 0, abandoned: 0 };
     if (!status) items.forEach((e) => { c[e.status] = (c[e.status] || 0) + 1; });
@@ -240,55 +254,59 @@ export default function Experiments() {
   }, [items, status]);
 
   const stats = [
-    { key: 'planned', label: 'Idées planifiées', icon: 'calendar_clock', sub: 'projets cadrés', cls: 'text-secondary', bar: 'bg-secondary-container' },
-    { key: 'ongoing', label: 'En cours de test', icon: 'science', sub: "bancs d'essai actifs", cls: 'text-tertiary-fixed-dim', bar: 'bg-tertiary-fixed-dim' },
-    { key: 'completed', label: 'Retours terminés', icon: 'task_alt', sub: 'livrables validés', cls: 'text-primary', bar: 'bg-primary' },
-    { key: 'abandoned', label: 'Abandonnées / Inadaptées', icon: 'pause_circle', sub: 'retirée(s)', cls: 'text-outline', bar: 'bg-outline' },
+    { key: 'planned', label: 'Idées planifiées', icon: 'calendar_clock', cls: 'text-secondary', bar: 'bg-secondary-container' },
+    { key: 'ongoing', label: 'En cours de test', icon: 'science', cls: 'text-tertiary-fixed-dim', bar: 'bg-tertiary-fixed-dim' },
+    { key: 'completed', label: 'Retours terminés', icon: 'task_alt', cls: 'text-primary', bar: 'bg-primary' },
+    { key: 'abandoned', label: 'Abandonnées / Inadaptées', icon: 'pause_circle', cls: 'text-outline', bar: 'bg-outline' },
   ];
 
   return (
     <div>
-      {/* Hero */}
-      <div className="relative w-full overflow-hidden bg-surface-container-low py-10 px-4 sm:px-6 lg:px-8">
+      {/* Hero compact */}
+      <div className="relative w-full overflow-hidden bg-surface-container-low py-6 px-4 sm:px-6 lg:px-8">
         <div className="absolute -right-20 -top-20 w-96 h-96 rounded-full bg-secondary-fixed/30 blur-3xl pointer-events-none" />
         <div className="absolute left-1/3 -bottom-24 w-80 h-80 rounded-full bg-tertiary-fixed/20 blur-3xl pointer-events-none" />
-        <div className="relative max-w-7xl mx-auto flex flex-col gap-8">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="max-w-3xl">
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <div className="relative max-w-7xl mx-auto flex flex-col gap-5">
+          {/* Ligne 1 : titre aligné sur la largeur de la liste, bouton sur la colonne latérale */}
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                 <span className="px-2.5 py-0.5 rounded-full bg-secondary text-on-secondary font-headline text-label-sm uppercase tracking-wider">Programme Terrain</span>
                 <span className="font-body text-body-sm text-on-surface-variant flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-tertiary-fixed-dim inline-block" />
                   Ivry-sur-Seine • Laboratoire Vivant
                 </span>
               </div>
-              <h1 className="font-headline text-headline-xl-mobile lg:text-headline-xl text-primary tracking-tight">Expérimentations IA en mode projet</h1>
-              <p className="font-body text-body-lg text-on-surface-variant mt-2">
+              <h1 className="font-headline text-headline-lg-mobile lg:text-headline-lg text-primary tracking-tight">Expérimentations IA en mode projet</h1>
+              <p className="font-body text-body-md text-on-surface-variant mt-1 line-clamp-2">
                 Banc d'essai participatif de la démarche IAmbassadeurs : les directions municipales éprouvent des outils d'IA frugale et éthique, mesurent les gains réels et évaluent les risques avant tout déploiement pérenne.
               </p>
             </div>
-            {canInteract && (
-              <PrimaryButton icon="add_circle" onClick={() => setModalOpen(true)} className="shrink-0 py-3 px-5">
-                Proposer une expérimentation
-              </PrimaryButton>
-            )}
+            <div className="flex shrink-0 justify-start lg:w-80 lg:justify-end">
+              {canInteract && (
+                <PrimaryButton icon="add_circle" onClick={() => setModalOpen(true)} className="shrink-0 py-2.5 px-5">
+                  Proposer une expérimentation
+                </PrimaryButton>
+              )}
+            </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {stats.map(({ key, label, icon, sub, cls, bar }) => (
-              <div key={key} className="bg-surface-container-lowest p-5 rounded-2xl shadow-card flex flex-col justify-between hover:shadow-card-hover transition-shadow">
-                <div className="flex items-center justify-between">
-                  <span className="font-headline text-label-md text-on-surface-variant">{label}</span>
-                  <span className={`material-symbols-outlined text-[22px] ${cls}`}>{icon}</span>
+          {/* Ligne 2 : tuiles de statistiques alignées sur la largeur de la liste */}
+          <div className="flex gap-4 lg:gap-8">
+            <div className="grid min-w-0 flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
+              {stats.map(({ key, label, icon, cls, bar }) => (
+                <div key={key} className="bg-surface-container-lowest p-3 rounded-xl shadow-card flex flex-col gap-2 hover:shadow-card-hover transition-shadow">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-headline text-label-sm text-on-surface-variant truncate">{label}</span>
+                    <span className={`material-symbols-outlined text-[18px] ${cls}`}>{icon}</span>
+                  </div>
+                  <div className="font-headline text-headline-md text-on-surface leading-none">{counts[key] ?? 0}</div>
+                  <div className="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden">
+                    <div className={`${bar} h-full rounded-full`} style={{ width: `${Math.min(100, (counts[key] ?? 0) * 20)}%` }} />
+                  </div>
                 </div>
-                <div className="mt-4 flex items-baseline gap-2">
-                  <span className="font-headline text-headline-xl text-on-surface">{counts[key] ?? 0}</span>
-                  <span className="font-body text-body-sm text-outline">{sub}</span>
-                </div>
-                <div className="w-full bg-surface-container-high h-1.5 rounded-full mt-3 overflow-hidden">
-                  <div className={`${bar} h-full rounded-full`} style={{ width: `${Math.min(100, (counts[key] ?? 0) * 20)}%` }} />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            <div className="hidden shrink-0 lg:block lg:w-80" aria-hidden="true" />
           </div>
         </div>
       </div>
@@ -298,41 +316,63 @@ export default function Experiments() {
           <div className="flex-1 flex flex-col gap-6">
             {/* Filtres */}
             <SectionCard className="p-4 sm:p-5 flex flex-col gap-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">filter_list</span>
-                <span className="font-headline text-headline-sm text-on-surface">Filtrer les bancs d'essai</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 pt-1 justify-between">
-                <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <button
-                    className={`px-3.5 py-1.5 rounded-full font-headline text-label-md transition-all ${status === '' ? 'bg-primary-container text-on-primary-container font-bold shadow-sm' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
-                    onClick={() => { setStatus(''); setOffset(0); }} type="button"
+                    type="button"
+                    onClick={() => setFiltersOpen((v) => !v)}
+                    aria-expanded={filtersOpen}
+                    aria-controls="experiments-filters"
+                    className="flex min-w-0 items-center gap-2 text-left"
                   >
-                    Tous
+                    <span className="material-symbols-outlined text-primary text-[20px]">filter_list</span>
+                    <span className="font-headline text-headline-sm text-on-surface">Filtrer les bancs d'essai</span>
+                    <span className={`material-symbols-outlined text-[24px] text-primary transition-transform ${filtersOpen ? 'rotate-180' : ''}`}>arrow_drop_down</span>
                   </button>
-                  {Object.entries(STATUS_META).map(([k, v]) => (
+                  {hasActiveFilters && (
                     <button
-                      key={k}
-                      className={`px-3.5 py-1.5 rounded-full font-headline text-label-md transition-all ${status === k ? 'bg-primary-container text-on-primary-container font-bold shadow-sm' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
-                      onClick={() => { setStatus(k); setOffset(0); }} type="button"
+                      type="button"
+                      onClick={resetFilters}
+                      className="font-body text-body-sm text-outline hover:text-primary transition-colors"
                     >
-                      {v.label}
+                      Réinitialiser
                     </button>
-                  ))}
+                  )}
                 </div>
-                <label className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-outline text-[18px]">sell</span>
-                  <StitchSelect
-                    className="!w-auto !py-1.5 !rounded-full !bg-surface-container-low"
-                    value={themeFilter}
-                    onChange={(e) => { setThemeFilter(e.target.value); setOffset(0); }}
-                    aria-label="Filtrer par thème"
-                  >
-                    <option value="">Tous les thèmes</option>
-                    {themes.map((t) => <option key={t.id} value={t.slug}>{t.label}</option>)}
-                  </StitchSelect>
-                </label>
               </div>
+              {filtersOpen && (
+                <div id="experiments-filters" className="flex flex-wrap items-center gap-2 pt-1 justify-between">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className={`px-3.5 py-1.5 rounded-full font-headline text-label-md transition-all ${status === '' ? 'bg-primary-container text-on-primary-container font-bold shadow-sm' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
+                      onClick={() => { setStatus(''); setOffset(0); }} type="button"
+                    >
+                      Tous
+                    </button>
+                    {Object.entries(STATUS_META).map(([k, v]) => (
+                      <button
+                        key={k}
+                        className={`px-3.5 py-1.5 rounded-full font-headline text-label-md transition-all ${status === k ? 'bg-primary-container text-on-primary-container font-bold shadow-sm' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
+                        onClick={() => { setStatus(k); setOffset(0); }} type="button"
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-outline text-[18px]">sell</span>
+                    <StitchSelect
+                      className="!w-auto !py-1.5 !rounded-full !bg-surface-container-low"
+                      value={themeFilter}
+                      onChange={(e) => { setThemeFilter(e.target.value); setOffset(0); }}
+                      aria-label="Filtrer par thème"
+                    >
+                      <option value="">Tous les thèmes</option>
+                      {themes.map((t) => <option key={t.id} value={t.slug}>{t.label}</option>)}
+                    </StitchSelect>
+                  </label>
+                </div>
+              )}
             </SectionCard>
 
             {error && <StitchAlert kind="error">{error}</StitchAlert>}
@@ -349,13 +389,9 @@ export default function Experiments() {
                 <span className="material-symbols-outlined text-[24px]">school</span>
                 <h3 className="font-headline text-headline-sm">Participer à un banc d'essai</h3>
               </div>
-              <p className="font-body text-body-sm text-on-surface-variant leading-relaxed">
-                Chaque agent de la Ville d'Ivry peut participer aux tests d'outils, quel que soit son niveau technique ou son service.
-              </p>
               <div className="space-y-3 pt-2">
                 {[
                   'Choisissez un projet et cliquez sur « Rejoindre ».',
-                  'Recevez les identifiants sécurisés sur votre poste de travail municipal.',
                   'Testez pendant quelques semaines et partagez vos avis concrets de terrain.',
                 ].map((txt, i) => (
                   <div key={i} className="flex items-start gap-3">
@@ -372,29 +408,24 @@ export default function Experiments() {
                 <h3 className="font-headline text-headline-sm">Garde-fous de la Charte</h3>
               </div>
               <p className="font-body text-body-sm text-on-surface-variant leading-relaxed">
-                Chaque banc d'essai est conditionné aux piliers de la future <strong>Charte Éthique de l'IA d'Ivry-sur-Seine</strong> :
+                Chaque banc d'essai est conditionné au respect du <strong>cadre d'usage minimum</strong> :
               </p>
-              <div className="space-y-3 font-body text-body-sm">
+              <div className="space-y-2 font-body text-body-sm">
                 {[
-                  { icon: 'person_check', label: 'Contrôle humain systématique' },
-                  { icon: 'security', label: 'Souveraineté des données (RGPD)' },
-                  { icon: 'eco', label: 'Sobriété numérique & frugale' },
-                  { icon: 'visibility', label: 'Transparence vis-à-vis des usagers' },
-                ].map(({ icon, label }) => (
-                  <div key={icon} className="flex items-center gap-2.5 p-2 rounded-xl bg-surface-container-lowest">
+                  { icon: 'security', label: 'Souveraineté des données (RGPD)', tip: "Aucune donnée personnelle ne doit être envoyée sur internet." },
+                  { icon: 'visibility', label: 'Transparence vis-à-vis des usagers', tip: "L'usage de l'IA est annoncé clairement. Chaque usager peut savoir quand un outil automatique intervient et obtenir une explication compréhensible des décisions qui le concernent." },
+                  { icon: 'person_check', label: 'Contrôle humain systématique', tip: "Aucune décision administrative n'est déléguée à l'IA : un agent garde toujours la main et peut vérifier, corriger ou refuser une proposition automatique." },
+                  { icon: 'description', label: "Documentation des cas d'usage", tip: "Chaque expérimentation est décrite et archivée (périmètre, outils, données, résultats, limites) pour garantir la traçabilité et la reproductibilité." },
+                  { icon: 'handshake', label: 'Respect des métiers de chacun', tip: "Les cas d'usage sont identifiés dans vos propres champs d'expertise, dans le respect de l'expertise métier de chacun et des processus internes des services." },
+                ].map(({ icon, label, tip }) => (
+                  <div key={label} className="group relative flex items-center gap-2.5 rounded-xl bg-surface-container-lowest p-2">
                     <span className="material-symbols-outlined text-secondary text-[20px]">{icon}</span>
                     <span className="text-on-surface font-medium">{label}</span>
+                    <span role="tooltip" className="pointer-events-none absolute bottom-full left-0 z-20 mb-1 w-64 rounded-lg bg-inverse-surface px-3 py-2 font-body text-body-sm font-normal leading-snug text-inverse-on-surface opacity-0 shadow-modal transition-opacity duration-150 group-hover:opacity-100">
+                      {tip}
+                    </span>
                   </div>
                 ))}
-              </div>
-              <div className="bg-surface-container-high/50 p-3 rounded-xl mt-1">
-                <div className="flex items-center gap-1.5 text-on-surface-variant font-headline text-label-sm">
-                  <span className="material-symbols-outlined text-[16px] text-tertiary">gavel</span>
-                  <span>Comité d'évaluation éthique</span>
-                </div>
-                <p className="font-body text-body-sm text-outline mt-1">
-                  Une expérimentation peut être suspendue si elle ne respecte pas les critères d'inclusivité municipale.
-                </p>
               </div>
             </div>
           </aside>

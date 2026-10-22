@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, UserPlus, UserMinus, Pencil, Trash2, Save } from 'lucide-react';
+import { ArrowLeft, Users, UserPlus, UserMinus, Pencil, Trash2, Save, FileText, Upload, Paperclip } from 'lucide-react';
 import { Card, PageTitle, Spinner, Alert, Badge, Button, Select, Input, Textarea, Field } from '../components/ui';
 import AiPanel from '../components/AiPanel';
 import CommentThread from '../components/CommentThread';
-import { deleteExperiment, getExperiment, getThemes, joinExperiment, synthExperiment, updateExperiment, updateExperimentStatus } from '../api/endpoints';
-import { errMsg } from '../api/client';
+import { deleteExperiment, getExperiment, getThemes, joinExperiment, synthExperiment, updateExperiment, updateExperimentStatus, addExperimentAttachment, deleteExperimentAttachment } from '../api/endpoints';
+import { API_URL, errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { EditedAt } from '../components/stitch';
 import { ThemePicker, ThemeChips } from '../components/Themes';
@@ -18,6 +18,11 @@ const STATUS: Record<string, { label: string; color: string }> = {
   abandoned: { label: 'Abandonnée', color: 'red' },
 };
 
+function fmtSize(bytes?: number | null): string {
+  if (!bytes) return '';
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} Mo` : `${Math.round(bytes / 1024)} Ko`;
+}
+
 export default function ExperimentDetail() {
   const { id } = useParams();
   const eid = Number(id);
@@ -27,6 +32,8 @@ export default function ExperimentDetail() {
   const [allThemes, setAllThemes] = useState<Theme[]>([]);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [fileError, setFileError] = useState('');
   const [form, setForm] = useState({ title: '', description: '', objective: '', target_date: '', status: 'planned', theme_ids: [] as number[] });
 
   useEffect(() => { getThemes({ scope: 'experiment' }).then(setAllThemes).catch(() => {}); }, []);
@@ -53,6 +60,16 @@ export default function ExperimentDetail() {
     if (!window.confirm('Supprimer définitivement cette expérimentation et sa discussion ?')) return;
     try { await deleteExperiment(eid); navigate('/experimentations'); }
     catch (err) { setError(errMsg(err)); }
+  }
+  async function uploadAttachment(file: File) {
+    setFileError(''); setUploading(true);
+    try { await addExperimentAttachment(eid, file); await load(); }
+    catch (err) { setFileError(errMsg(err)); } finally { setUploading(false); }
+  }
+  async function removeAttachment(attachmentId: number) {
+    if (!window.confirm('Supprimer ce document joint ?')) return;
+    try { await deleteExperimentAttachment(eid, attachmentId); await load(); }
+    catch (err) { setFileError(errMsg(err)); }
   }
 
   return (
@@ -100,6 +117,42 @@ export default function ExperimentDetail() {
           <div>
             <div className="mb-1 flex items-center gap-1 text-sm font-medium text-slate-500"><Users size={15} /> Participants ({e.participants?.length || 0})</div>
             <div className="flex flex-wrap gap-2">{(e.participants || []).map((p) => <Badge key={p.id} color="blue">{p.display_name}</Badge>)}</div>
+          </div>
+          <div>
+            <div className="mb-1 flex items-center gap-1 text-sm font-medium text-slate-500"><Paperclip size={15} /> Documents joints ({e.attachments?.length || 0})</div>
+            {(e.attachments || []).length > 0 && (
+              <ul className="mb-2 space-y-1">
+                {(e.attachments || []).map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5">
+                    <a href={`${API_URL}/uploads/${a.file_path}`} target="_blank" rel="noreferrer" className="inline-flex min-w-0 items-center gap-2 text-sm text-ville-600 hover:underline">
+                      <FileText size={15} className="shrink-0" />
+                      <span className="truncate">{a.original_name}</span>
+                    </a>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {a.size_bytes ? <span className="text-xs text-slate-400">{fmtSize(a.size_bytes)}</span> : null}
+                      {canEdit && (
+                        <button type="button" onClick={() => removeAttachment(a.id)} className="text-slate-400 hover:text-red-600" title="Supprimer" aria-label="Supprimer le document">
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canEdit && (
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200">
+                <Upload size={15} />
+                <span>{uploading ? 'Envoi…' : 'Joindre un document (10 Mo max)'}</span>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.odt,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.rtf,.txt,.csv"
+                  className="hidden" disabled={uploading}
+                  onChange={(ev) => { const f = ev.target.files?.[0]; if (f) uploadAttachment(f); ev.target.value = ''; }}
+                />
+              </label>
+            )}
+            {fileError && <p className="mt-1 text-xs text-red-600">{fileError}</p>}
           </div>
           {canInteract && (
             <Button variant={e.joined ? 'secondary' : 'primary'} onClick={async () => { await joinExperiment(eid); load(); }}>

@@ -1,4 +1,6 @@
 const { db, SCHEMA } = require('../../pg_db');
+const fs = require('fs');
+const path = require('path');
 const ia = require('../../services/ia');
 const comments = require('../comments/comments.service');
 const { pageParams } = require('../../utils/pagination');
@@ -20,7 +22,8 @@ async function list(user, query) {
     `SELECT e.*, u.display_name AS created_by_name,
             (SELECT count(*)::int FROM ${SCHEMA}.experiment_participants p WHERE p.experiment_id = e.id) AS participants_count,
             EXISTS(SELECT 1 FROM ${SCHEMA}.experiment_participants p WHERE p.experiment_id = e.id AND p.user_id = $1) AS joined,
-            (SELECT count(*)::int FROM ${SCHEMA}.comments c WHERE c.entity_type='experiment' AND c.entity_id=e.id) AS comments_count
+            (SELECT count(*)::int FROM ${SCHEMA}.comments c WHERE c.entity_type='experiment' AND c.entity_id=e.id) AS comments_count,
+            (SELECT count(*)::int FROM ${SCHEMA}.experiment_attachments a WHERE a.experiment_id = e.id) AS attachments_count
        FROM ${SCHEMA}.experiments e JOIN ${SCHEMA}.users u ON u.id = e.created_by
       WHERE ${where}
       ORDER BY e.created_at DESC
@@ -44,6 +47,7 @@ async function getById(id, user) {
     [id]
   );
   e.joined = e.participants.some((p) => p.id === user.id);
+  e.attachments = await listAttachments(id);
   const themeMap = await themes.themesForEntities('experiment', [id]);
   e.themes = themeMap[id] || [];
   return e;
@@ -83,6 +87,48 @@ async function toggleJoin(user, id) {
   }
   await db.run(`INSERT INTO ${SCHEMA}.experiment_participants (experiment_id, user_id) VALUES ($1,$2)`, [id, user.id]);
   return { joined: true };
+}
+
+// ── Pièces jointes (documents) : auteur, IAnimateur ou admin (canEdit) ──
+async function listAttachments(experimentId) {
+  return db.all(
+    `SELECT a.id, a.file_path, a.original_name, a.mime_type, a.size_bytes, a.created_at,
+            u.display_name AS uploaded_by_name
+       FROM ${SCHEMA}.experiment_attachments a
+       JOIN ${SCHEMA}.users u ON u.id = a.uploaded_by
+      WHERE a.experiment_id = $1
+      ORDER BY a.created_at ASC`,
+    [experimentId]
+  );
+}
+
+async function addAttachment(user, id, file) {
+  if (!file) throw Object.assign(new Error('Fichier requis'), { status: 400 });
+  const exp = await db.get(`SELECT created_by FROM ${SCHEMA}.experiments WHERE id=$1`, [id]);
+  if (!exp) throw Object.assign(new Error('Expérimentation introuvable'), { status: 404 });
+  if (!canEdit(user, exp)) throw Object.assign(new Error('Droits insuffisants'), { status: 403 });
+  const row = await db.get(
+    `INSERT INTO ${SCHEMA}.experiment_attachments (experiment_id, file_path, original_name, mime_type, size_bytes, uploaded_by)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+    [id, file.filename, file.originalname, file.mimetype, file.size, user.id]
+  );
+  await logAction(user.id, 'experiment_attachment_add', 'experiment', id, { attachment_id: row.id, name: file.originalname });
+  return { id: row.id };
+}
+
+async function removeAttachment(user, id, attachmentId) {
+  const exp = await db.get(`SELECT created_by FROM ${SCHEMA}.experiments WHERE id=$1`, [id]);
+  if (!exp) throw Object.assign(new Error('Expérimentation introuvable'), { status: 404 });
+  if (!canEdit(user, exp)) throw Object.assign(new Error('Droits insuffisants'), { status: 403 });
+  const att = await db.get(
+    `SELECT file_path FROM ${SCHEMA}.experiment_attachments WHERE id=$1 AND experiment_id=$2`,
+    [attachmentId, id]
+  );
+  if (!att) throw Object.assign(new Error('Pièce jointe introuvable'), { status: 404 });
+  await db.run(`DELETE FROM ${SCHEMA}.experiment_attachments WHERE id=$1`, [attachmentId]);
+  fs.promises.unlink(path.join(__dirname, '..', '..', 'uploads', att.file_path)).catch(() => {});
+  await logAction(user.id, 'experiment_attachment_delete', 'experiment', id, { attachment_id: attachmentId });
+  return { id: attachmentId, deleted: true };
 }
 
 async function synthesize(user, id) {
@@ -125,4 +171,4 @@ async function remove(user, id) {
   return { id, deleted: true };
 }
 
-module.exports = { list, getById, create, updateStatus, toggleJoin, synthesize, update, remove, canEdit };
+module.exports = { list, getById, create, updateStatus, toggleJoin, synthesize, update, remove, canEdit, addAttachment, removeAttachment };

@@ -45,6 +45,13 @@ export const createExperiment = (data: Partial<Experiment> & { theme_ids?: numbe
 export const updateExperimentStatus = (id: number, status: string) =>
   api.patch(`/api/v1/experiments/${id}/status`, { status }).then((r) => r.data);
 export const joinExperiment = (id: number) => api.post(`/api/v1/experiments/${id}/join`).then((r) => r.data);
+export const addExperimentAttachment = (id: number, file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post(`/api/v1/experiments/${id}/attachments`, form).then((r) => r.data);
+};
+export const deleteExperimentAttachment = (id: number, attachmentId: number) =>
+  api.delete(`/api/v1/experiments/${id}/attachments/${attachmentId}`).then((r) => r.data);
 export const synthExperiment = (id: number) =>
   api.post<AiResult>(`/api/v1/experiments/${id}/synthesize`).then((r) => r.data);
 

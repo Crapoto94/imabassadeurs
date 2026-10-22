@@ -58,10 +58,22 @@ export interface Experiment {
   participants_count: number;
   joined: boolean;
   comments_count: number;
+  attachments_count?: number;
   created_at: string;
   participants?: { id: number; display_name: string }[];
+  attachments?: ExperimentAttachment[];
   edited_at?: string | null;
   themes?: Theme[];
+}
+
+export interface ExperimentAttachment {
+  id: number;
+  file_path: string;
+  original_name: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  uploaded_by_name: string;
+  created_at: string;
 }
 
 export interface Risk {
