@@ -279,7 +279,7 @@ export default function Experiments() {
               </div>
               <h1 className="font-headline text-headline-lg-mobile lg:text-headline-lg text-primary tracking-tight">Expérimentations IA en mode projet</h1>
               <p className="font-body text-body-md text-on-surface-variant mt-1 line-clamp-2">
-                Banc d'essai participatif de la démarche IAmbassadeurs : les directions municipales éprouvent des outils d'IA frugale et éthique, mesurent les gains réels et évaluent les risques avant tout déploiement pérenne.
+                Banc d'essai participatif de la démarche IAmbassadeurs : les directions municipales éprouvent des cas d'usage IA, mesurent les gains réels et évaluent les risques avant tout déploiement pérenne.
               </p>
             </div>
             <div className="flex shrink-0 justify-start lg:w-80 lg:justify-end">

@@ -265,7 +265,7 @@ export default function Risks() {
               </div>
               <h1 className="font-headline text-headline-lg-mobile lg:text-headline-lg text-primary tracking-tight">Cartographie &amp; Vigilance des Risques IA</h1>
               <p className="font-body text-body-md text-on-surface-variant max-w-2xl">
-                Recensement citoyen et paritaire des vulnérabilités éthiques, techniques et humaines. Chaque risque instruit alimente directement les garde-fous de la future Charte Municipale d'Ivry-sur-Seine.
+                Recensement citoyen et paritaire des vulnérabilités éthiques, techniques et humaines.
               </p>
             </div>
           </div>
@@ -364,7 +364,7 @@ export default function Risks() {
 
           {/* Filtres */}
           <SectionCard className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4">
-            <div className="flex items-center gap-1.5 p-1 bg-surface-container rounded-full w-full sm:w-auto overflow-x-auto">
+            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-surface-container rounded-2xl sm:rounded-full w-full sm:w-auto sm:flex-nowrap sm:shrink-0">
               {([
                 { k: 'all', label: 'Tous les risques', dot: false },
                 { k: 'ivry', label: 'Spécifiques Ivry', dot: true },
@@ -372,7 +372,7 @@ export default function Risks() {
               ] as { k: 'all' | 'ivry' | 'general'; label: string; dot: boolean }[]).map(({ k, label, dot }) => (
                 <button
                   key={k}
-                  className={`px-4 py-1.5 rounded-full font-headline text-label-md transition-all flex items-center gap-1.5 whitespace-nowrap ${scope === k ? 'bg-surface-container-lowest text-primary shadow-sm font-bold' : 'text-on-surface-variant hover:text-on-surface'}`}
+                  className={`px-4 py-2 rounded-full font-headline text-label-md transition-all flex items-center gap-1.5 whitespace-nowrap ${scope === k ? 'bg-surface-container-lowest text-primary shadow-sm font-bold' : 'text-on-surface-variant hover:text-on-surface'}`}
                   onClick={() => { setScope(k); setOffset(0); }} type="button"
                 >
                   {dot && <span className="w-2 h-2 rounded-full bg-secondary" />}
@@ -429,15 +429,6 @@ export default function Risks() {
               ))}
             </div>
           </SectionCard>
-          <div className="bg-surface-container-low p-5 rounded-2xl">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="material-symbols-outlined text-outline text-[18px]">verified_user</span>
-              <span className="font-headline text-label-sm uppercase tracking-wider text-outline">Comité Éthique Municipal</span>
-            </div>
-            <p className="font-body text-body-sm text-on-surface-variant">
-              Les signalements à gravité maximale (4★ × 4★) sont automatiquement inscrits à l'ordre du jour du prochain Comité Éthique d'Ivry-sur-Seine.
-            </p>
-          </div>
         </aside>
       </div>
 
