@@ -79,6 +79,7 @@ app.use('/api/v1/mapping', require('./modules/mapping/mapping.routes'));
 app.use('/api/v1/analytics', require('./modules/analytics/analytics.routes'));
 app.use('/api/v1/account', require('./modules/account/account.routes'));
 app.use('/api/v1/comments', require('./modules/comments/comments.routes'));
+app.use('/api/v1/gamification', require('./modules/gamification/gamification.routes'));
 app.use('/api/v1', require('./modules/public/public.routes'));
 
 app.use((req, res) => res.status(404).json({ error: 'Route introuvable' }));

@@ -7,9 +7,10 @@ import AiPanel from '../components/AiPanel';
 import CommentThread from '../components/CommentThread';
 import VideoEmbed, { detectVideo } from '../components/VideoEmbed';
 import PdfEmbed from '../components/PdfEmbed';
-import { deleteResource, getResource, getThemes, rateResource, setResourceMandatory, synthResource, synthResourceThread, updateResource } from '../api/endpoints';
+import { deleteResource, getResource, getThemes, rateResource, setResourceMandatory, synthResource, synthResourceThread, updateResource, completeResource } from '../api/endpoints';
 import { API_URL, errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { useGamification } from '../hooks/useGamification';
 import { EditedAt, LevelBadge, MandatoryBadge, LEVELS, LEVEL_META } from '../components/stitch';
 import { ThemePicker, ThemeChips } from '../components/Themes';
 import type { Resource, Theme } from '../types';
@@ -19,6 +20,7 @@ export default function ResourceDetail() {
   const rid = Number(id);
   const navigate = useNavigate();
   const { canInteract, isIanimateur, isAdmin, user } = useAuth();
+  const { refresh } = useGamification();
   const [r, setR] = useState<Resource | null>(null);
   const [allThemes, setAllThemes] = useState<Theme[]>([]);
   const [error, setError] = useState('');
@@ -41,6 +43,17 @@ export default function ResourceDetail() {
     } catch (e) { setError(errMsg(e)); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [rid]);
+
+  async function markRead() {
+    if ((r?.my_progress ?? 0) >= 100) return;
+    try { await completeResource(rid); await refresh(); load(); } catch { /* silencieux */ }
+  }
+
+  // Auto-marquage : l'ouverture d'un PDF vaut consultation (Phase 1).
+  useEffect(() => {
+    if (r?.kind === 'pdf' && r.file_path && (r.my_progress ?? 0) < 100) markRead();
+    /* eslint-disable-next-line */
+  }, [r?.id]);
 
   if (error) return <Alert kind="error">{error}</Alert>;
   if (!r) return <div className="flex justify-center py-12"><Spinner /></div>;
@@ -119,10 +132,22 @@ export default function ResourceDetail() {
             </a>
           )}
           {r.kind === 'link' && r.url && (
-            <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-ville-600 hover:underline">
+            <a href={r.url} target="_blank" rel="noreferrer" onClick={markRead} className="inline-flex items-center gap-2 text-sm text-ville-600 hover:underline">
               <ExternalLink size={16} /> {r.url}
             </a>
           )}
+          <div className="flex flex-wrap items-center gap-3">
+            {(r.my_progress ?? 0) >= 100 ? (
+              <span className="inline-flex items-center gap-1.5 text-sm text-tertiary">
+                <span className="material-symbols-outlined text-[18px]">check_circle</span> Consulté
+              </span>
+            ) : (
+              <Button variant="secondary" onClick={markRead}>
+                <span className="material-symbols-outlined text-[16px]">check_circle</span> Marquer comme lu
+              </Button>
+            )}
+            {r.is_mandatory && <span className="text-xs text-outline">Ressource du parcours obligatoire</span>}
+          </div>
           <div className="flex items-center gap-4 border-t border-slate-100 pt-4">
             <div>
               <div className="text-sm font-medium text-slate-700">Note moyenne : {r.avg_stars ?? '—'} / 4</div>

@@ -40,6 +40,7 @@ export interface Resource {
   ratings_count: number;
   comments_count: number;
   my_rating?: number | null;
+  my_progress?: number;
   created_at: string;
   edited_at?: string | null;
   themes?: Theme[];
@@ -138,4 +139,29 @@ export interface AiResult {
   provider_label?: string;
   model_name?: string;
   action_key?: string;
+}
+
+export interface GamificationBadge {
+  key: string;
+  label: string;
+  icon: string;
+  earned: boolean;
+}
+
+export interface GamificationBreakdownItem {
+  count: number;
+  points: number;
+}
+
+export interface GamificationSummary {
+  enabled: boolean;
+  points: number;
+  level: number;
+  level_label: string;
+  current_level_points: number;
+  next_level_points: number | null;
+  progress_pct: number;
+  badges: GamificationBadge[];
+  breakdown: Record<string, GamificationBreakdownItem>;
+  parcours: { total: number; lu: number };
 }

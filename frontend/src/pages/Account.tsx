@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { getAccount, setPreference } from '../api/endpoints';
 import { errMsg } from '../api/client';
+import { useGamification } from '../hooks/useGamification';
 import {
-  Avatar, RoleBadge, SectionCard, StitchAlert, StitchSelect, StitchSpinner, useToast,
+  Avatar, RoleBadge, SectionCard, StitchAlert, StitchSelect, StitchSpinner, ProgressBar, useToast,
 } from '../components/stitch';
 
 const CATEGORIES: { key: string; label: string }[] = [
@@ -22,6 +23,7 @@ const FREQUENCIES = [
 
 export default function Account() {
   const { show, Toast } = useToast();
+  const { summary } = useGamification();
   const [data, setData] = useState<{ user: any; preferences: Record<string, string> } | null>(null);
   const [error, setError] = useState('');
 
@@ -57,6 +59,62 @@ export default function Account() {
 
         {/* Informations */}
         <div className="lg:col-span-8 space-y-6">
+          {summary?.enabled && (
+            <SectionCard className="p-6">
+              <h2 className="mb-1 font-headline text-headline-sm text-primary flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px]">bolt</span>
+                Ma progression
+              </h2>
+              <p className="mb-4 font-body text-body-sm text-on-surface-variant">
+                Vos contributions nourrissent la montée en compétence collective.
+              </p>
+              <div className="flex items-center gap-4 mb-3">
+                <div className="text-center shrink-0">
+                  <span className="font-headline text-headline-xl text-primary">{summary.points}</span>
+                  <p className="font-headline text-label-sm text-outline uppercase">points</p>
+                </div>
+                <div className="flex-1">
+                  <ProgressBar value={summary.progress_pct} />
+                  <div className="mt-1 flex justify-between font-headline text-label-sm text-outline">
+                    <span>{summary.level_label}</span>
+                    <span>
+                      {summary.next_level_points != null
+                        ? `${summary.next_level_points - summary.points} pts avant le niveau ${summary.level + 1}`
+                        : 'Niveau maximal atteint'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {summary.parcours.total > 0 && (
+                <div className="mb-4">
+                  <p className="mb-1 font-headline text-label-sm text-on-surface-variant uppercase tracking-wider">Parcours obligatoire</p>
+                  <div className="flex items-center gap-3">
+                    <ProgressBar value={summary.parcours.total ? Math.round((summary.parcours.lu / summary.parcours.total) * 100) : 0} />
+                    <span className="font-headline text-label-md text-on-surface whitespace-nowrap">
+                      {summary.parcours.lu}/{summary.parcours.total} lu(s)
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {summary.badges.map((b) => (
+                  <span
+                    key={b.key}
+                    title={b.label}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-headline text-label-sm ${
+                      b.earned
+                        ? 'bg-tertiary-fixed/50 text-on-tertiary-fixed-variant border-tertiary-fixed-dim/40'
+                        : 'bg-surface-container text-outline border-surface-container-high opacity-60'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">{b.earned ? b.icon : 'lock'}</span>
+                    {b.label}
+                  </span>
+                ))}
+              </div>
+            </SectionCard>
+          )}
+
           <SectionCard className="p-6">
             <h2 className="mb-4 font-headline text-headline-sm text-primary flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px]">person</span>

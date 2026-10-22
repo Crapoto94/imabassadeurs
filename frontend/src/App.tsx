@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import { GamificationProvider } from './hooks/useGamification';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Resources from './pages/Resources';
@@ -22,7 +23,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/digest/rate/:token" element={<RateDigest />} />
-      <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+      <Route element={<ProtectedRoute><GamificationProvider><Layout /></GamificationProvider></ProtectedRoute>}>
         <Route path="/" element={<Home />} />
         <Route path="/ressources" element={<Resources />} />
         <Route path="/ressources/:id" element={<ResourceDetail />} />

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useGamification } from '../hooks/useGamification';
 
 const navCls = ({ isActive }: { isActive: boolean }) =>
   `px-3 py-1.5 font-headline text-label-md rounded-full transition-colors whitespace-nowrap ${
@@ -12,6 +13,7 @@ const navCls = ({ isActive }: { isActive: boolean }) =>
 // En-tête fixe type maquette Stitch : logo, nav horizontale, actions, avatar.
 export default function Layout() {
   const { user, logout, isAdmin, isIanimateur, canInteract } = useAuth();
+  const { summary } = useGamification();
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -53,6 +55,14 @@ export default function Layout() {
           </nav>
 
           <div className="flex items-center gap-2 shrink-0">
+            {summary?.enabled && (
+              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-tertiary-fixed/40 rounded-full">
+                <span className="material-symbols-outlined text-[14px] text-on-tertiary-fixed-variant">bolt</span>
+                <span className="font-headline text-label-sm text-on-tertiary-fixed-variant whitespace-nowrap">
+                  {summary.level_label} · {summary.points} pts
+                </span>
+              </div>
+            )}
             {user?.roles?.[0] && (
               <div className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1 bg-primary-fixed/50 rounded-full">
                 <span className="w-2 h-2 rounded-full bg-secondary" />
@@ -87,6 +97,11 @@ export default function Layout() {
                     <div className="font-body text-body-sm text-on-surface-variant truncate">
                       {user?.roles?.length ? user.roles.join(', ') : 'Lecteur'}
                     </div>
+                    {summary?.enabled && (
+                      <div className="font-headline text-label-sm text-tertiary mt-0.5">
+                        {summary.level_label} · {summary.points} pts
+                      </div>
+                    )}
                   </div>
                   <NavLink to="/compte" className="flex items-center gap-2 px-4 py-2 font-body text-body-md text-on-surface-variant hover:bg-surface-container">
                     <span className="material-symbols-outlined text-[18px]">person</span> Mon compte

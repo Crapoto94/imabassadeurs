@@ -9,6 +9,8 @@ const create = async (req, res) => {
 };
 const review = async (req, res) => res.json(await service.review(req.user, parseInt(req.params.id, 10), req.body.status, req.body.note));
 const rate = async (req, res) => res.json(await service.rate(req.user, parseInt(req.params.id, 10), req.body.stars));
+const setProgress = async (req, res) => res.json(await service.setProgress(req.user, parseInt(req.params.id, 10), req.body.progress_pct));
+const complete = async (req, res) => res.json(await service.setProgress(req.user, parseInt(req.params.id, 10), 100));
 const synthDoc = async (req, res) => {
   try {
     res.json(await service.synthesizeDocument(req.user, parseInt(req.params.id, 10)));
@@ -28,4 +30,4 @@ const update = async (req, res) => res.json(await service.update(req.user, parse
 const setMandatory = async (req, res) => res.json(await service.setMandatory(req.user, parseInt(req.params.id, 10), req.body.mandatory));
 const remove = async (req, res) => res.json(await service.remove(req.user, parseInt(req.params.id, 10)));
 
-module.exports = { list, getOne, create, review, rate, synthDoc, synthThread, update, setMandatory, remove };
+module.exports = { list, getOne, create, review, rate, setProgress, complete, synthDoc, synthThread, update, setMandatory, remove };

@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { castVote, getExperiments, getPrinciples, getResources, getRisks, getStats, getThemes, getVotes, joinExperiment } from '../api/endpoints';
 import { useAuth } from '../hooks/useAuth';
+import { useGamification } from '../hooks/useGamification';
 import CommentThread from '../components/CommentThread';
 import ResourceCard from '../components/ResourceCard';
 import {
   Avatar, GhostButton, Modal, PrimaryButton, RoleBadge, SectionCard, StitchInput,
-  StitchSelect, StitchSpinner, timeAgo, useToast,
+  StitchSelect, StitchSpinner, ProgressBar, timeAgo, useToast,
 } from '../components/stitch';
 import type { Experiment, Principle, Resource, Risk, Theme, VoteSession } from '../types';
 
@@ -288,6 +289,7 @@ function RiskCard({ risk }: { risk: Risk }) {
 
 export default function Home() {
   const { user, canInteract } = useAuth();
+  const { summary } = useGamification();
   const navigate = useNavigate();
   const location = useLocation();
   const [stats, setStats] = useState<any>(null);
@@ -402,9 +404,9 @@ export default function Home() {
   const adopted = principles.filter((p) => p.status === 'adopted').length;
   const firstName = user?.display_name?.split(' ')[0] || '';
   const composerTargets = [
+    { icon: 'article', label: 'Document', full: 'Partager un document ou un lien', to: '/ressources', color: 'text-primary' },
     { icon: 'lightbulb', label: 'Expérimentation', full: 'Proposer une expérimentation', to: '/experimentations', color: 'text-secondary' },
     { icon: 'warning', label: 'Risque IA', full: 'Déclarer un risque IA', to: '/risques', color: 'text-error' },
-    { icon: 'article', label: 'Document', full: 'Partager un document ou un lien', to: '/ressources', color: 'text-primary' },
     { icon: 'how_to_vote', label: 'Vote', full: 'Lancer une consultation ou un vote', to: '/votes', color: 'text-tertiary-container' },
   ];
 
@@ -447,6 +449,24 @@ export default function Home() {
               <span>Mon compte</span>
             </Link>
           </SectionCard>
+
+          {summary?.enabled && (
+            <SectionCard className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-headline text-label-sm text-on-surface-variant flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-tertiary">bolt</span>
+                  {summary.level_label}
+                </span>
+                <span className="font-headline text-label-sm text-tertiary font-bold">{summary.points} pts</span>
+              </div>
+              <ProgressBar value={summary.progress_pct} />
+              <p className="font-body text-body-sm text-outline text-[12px]">
+                {summary.next_level_points != null
+                  ? `Plus que ${summary.next_level_points - summary.points} pts avant le niveau ${summary.level + 1}.`
+                  : 'Niveau maximal atteint.'}
+              </p>
+            </SectionCard>
+          )}
 
           <nav aria-label="Raccourcis rapides" className="bg-surface-container-lowest rounded-2xl p-3 shadow-card space-y-1">
             {[

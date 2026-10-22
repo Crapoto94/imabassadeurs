@@ -13,9 +13,11 @@ async function getSettings() {
 async function updateSettings(user, data) {
   await db.run(
     `UPDATE ${SCHEMA}.app_settings
-        SET org_name=$1, footer_line1=$2, footer_line2=$3, footer_line3=$4, footer_color=$5
+        SET org_name=$1, footer_line1=$2, footer_line2=$3, footer_line3=$4, footer_color=$5,
+            gamification_enabled=$6
       WHERE id=1`,
-    [data.org_name, data.footer_line1, data.footer_line2, data.footer_line3, data.footer_color]
+    [data.org_name, data.footer_line1, data.footer_line2, data.footer_line3, data.footer_color,
+      data.gamification_enabled !== false]
   );
   await logAction(user.id, 'settings_update', 'app_settings', 1, data);
   return getSettings();

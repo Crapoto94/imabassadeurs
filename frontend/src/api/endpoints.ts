@@ -1,5 +1,5 @@
 import { api, API_URL } from './client';
-import type { AiResult, Comment, Experiment, GraphData, Principle, Resource, Risk, Theme, User, VoteSession } from '../types';
+import type { AiResult, Comment, Experiment, GamificationSummary, GraphData, Principle, Resource, Risk, Theme, User, VoteSession } from '../types';
 
 // ── Auth ──
 export const login = (username: string, password: string) =>
@@ -31,6 +31,10 @@ export const synthResource = (id: number) =>
   api.post<AiResult>(`/api/v1/resources/${id}/synthesize`).then((r) => r.data);
 export const synthResourceThread = (id: number) =>
   api.post<AiResult>(`/api/v1/resources/${id}/synthesize-thread`).then((r) => r.data);
+export const setResourceProgress = (id: number, progressPct: number) =>
+  api.put(`/api/v1/resources/${id}/progress`, { progress_pct: progressPct }).then((r) => r.data);
+export const completeResource = (id: number) =>
+  api.post(`/api/v1/resources/${id}/complete`).then((r) => r.data);
 
 // ── Expérimentations ──
 export const getExperiments = (params?: Record<string, unknown>) =>
@@ -97,6 +101,9 @@ export const getDigestQuality = () => api.get<any[]>('/api/v1/analytics/digest-q
 export const getAccount = () => api.get<{ user: User; preferences: Record<string, string> }>('/api/v1/account').then((r) => r.data);
 export const setPreference = (category: string, frequency: string) =>
   api.put('/api/v1/account/preferences', { category, frequency }).then((r) => r.data);
+
+// ── Gamification ──
+export const getGamificationMe = () => api.get<GamificationSummary>('/api/v1/gamification/me').then((r) => r.data);
 
 // ── Admin ──
 export const getSettings = () => api.get<any>('/api/v1/admin/settings').then((r) => r.data);

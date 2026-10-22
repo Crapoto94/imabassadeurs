@@ -391,6 +391,21 @@ function SettingsTab() {
             className="w-16 h-10 rounded-lg border border-outline-variant cursor-pointer bg-surface-container-lowest"
           />
         </StitchField>
+        <div className="flex items-center gap-3 rounded-xl bg-surface-container-low px-4 py-3">
+          <input
+            id="gamification-enabled"
+            type="checkbox"
+            checked={s.gamification_enabled !== false}
+            onChange={(e) => setS({ ...s, gamification_enabled: e.target.checked })}
+            className="h-4 w-4 accent-secondary"
+          />
+          <label htmlFor="gamification-enabled" className="cursor-pointer">
+            <span className="block font-headline text-label-md text-on-surface">Activer la gamification (points et niveaux)</span>
+            <span className="block font-body text-body-sm text-on-surface-variant">
+              Désactiver masque la progression personnelle sans supprimer les contributions.
+            </span>
+          </label>
+        </div>
         {error && <StitchAlert kind="error">{error}</StitchAlert>}
         <PrimaryButton type="submit" icon="save">Enregistrer</PrimaryButton>
       </form>

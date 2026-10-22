@@ -31,6 +31,8 @@ router.delete('/:id', requireAuth, requireInteract, asyncHandler(ctrl.remove));
 router.post('/:id/review', requireAuth, requireIanimateur, asyncHandler(ctrl.review));
 router.patch('/:id/mandatory', requireAuth, requireAdmin, asyncHandler(ctrl.setMandatory));
 router.post('/:id/rate', requireAuth, requireInteract, asyncHandler(ctrl.rate));
+router.put('/:id/progress', requireAuth, asyncHandler(ctrl.setProgress));
+router.post('/:id/complete', requireAuth, asyncHandler(ctrl.complete));
 router.post('/:id/synthesize', requireAuth, requireInteract, asyncHandler(ctrl.synthDoc));
 router.post('/:id/synthesize-thread', requireAuth, requireInteract, asyncHandler(ctrl.synthThread));
 

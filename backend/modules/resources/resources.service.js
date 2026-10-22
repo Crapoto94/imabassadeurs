@@ -88,8 +88,12 @@ async function getById(id, user) {
     `SELECT stars FROM ${SCHEMA}.resource_ratings WHERE resource_id = $1 AND user_id = $2`,
     [id, user.id]
   );
+  const myProgress = await db.get(
+    `SELECT progress_pct FROM ${SCHEMA}.resource_progress WHERE resource_id = $1 AND user_id = $2`,
+    [id, user.id]
+  );
   const themeMap = await themes.themesForEntities('resource', [id]);
-  return { ...r, my_rating: myRating?.stars || null, themes: themeMap[id] || [] };
+  return { ...r, my_rating: myRating?.stars || null, my_progress: myProgress?.progress_pct || 0, themes: themeMap[id] || [] };
 }
 
 async function create(user, data, file) {
@@ -131,6 +135,22 @@ async function rate(user, id, stars) {
     [id, user.id, s]
   );
   return { resource_id: id, stars: s };
+}
+
+// Progression de lecture (gamification) : monotone (la progression ne recule jamais).
+async function setProgress(user, id, progressPct) {
+  const r = await db.get(`SELECT id FROM ${SCHEMA}.resources WHERE id=$1`, [id]);
+  if (!r) throw Object.assign(new Error('Ressource introuvable'), { status: 404 });
+  const pct = Math.max(0, Math.min(100, parseInt(progressPct, 10) || 0));
+  await db.run(
+    `INSERT INTO ${SCHEMA}.resource_progress (resource_id, user_id, progress_pct)
+     VALUES ($1,$2,$3)
+     ON CONFLICT (resource_id, user_id) DO UPDATE
+       SET progress_pct = GREATEST(${SCHEMA}.resource_progress.progress_pct, EXCLUDED.progress_pct),
+           updated_at = now()`,
+    [id, user.id, pct]
+  );
+  return { resource_id: id, progress_pct: pct };
 }
 
 async function synthesizeDocument(user, id) {
@@ -196,6 +216,6 @@ async function remove(user, id) {
 }
 
 module.exports = {
-  list, getById, create, review, rate, synthesizeDocument, synthesizeThread,
+  list, getById, create, review, rate, setProgress, synthesizeDocument, synthesizeThread,
   update, setMandatory, remove, isModerator,
 };
