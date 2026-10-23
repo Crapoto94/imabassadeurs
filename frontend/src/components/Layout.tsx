@@ -144,7 +144,7 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-6 font-body text-body-sm text-outline">
-            <p>© 2026 Direction de la Transformation Numérique &amp; Citoyenneté • Ivry-sur-Seine</p>
+            <p>© 2026 Ivry-sur-Seine</p>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-tertiary-fixed-dim" />
               <span className="font-headline text-label-sm text-on-surface-variant">Réseau d'agents IAmbassadeurs actif</span>
