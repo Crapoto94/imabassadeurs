@@ -110,7 +110,7 @@ async function graph() {
 
   const nodes = [];
   const edges = [];
-  const add = (type, rows, extra = () => ({})) => rows.forEach((r) => nodes.push({ id: `${type}:${r.id}`, type, ...r, ...extra(r) }));
+  const add = (type, rows, extra = () => ({})) => rows.forEach((r) => nodes.push({ ...r, type, id: `${type}:${r.id}`, ...extra(r) }));
 
   add('resource', resources);
   add('risk', risks);
