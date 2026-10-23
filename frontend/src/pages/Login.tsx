@@ -47,7 +47,7 @@ export default function Login() {
                 autoFocus value={username} onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username" required
                 className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low rounded-xl font-body text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-secondary/20 transition-all"
-                placeholder="p.dupont"
+                placeholder="pdupont"
               />
             </div>
           </label>
