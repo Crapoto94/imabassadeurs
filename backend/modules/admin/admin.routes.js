@@ -12,6 +12,7 @@ router.put('/settings', asyncHandler(async (req, res) => res.json(await service.
 router.get('/users', asyncHandler(async (req, res) => res.json(await service.listUsers(req.query))));
 router.post('/users/:id/roles', asyncHandler(async (req, res) => res.json(await service.grantRole(req.user, parseInt(req.params.id, 10), req.body.role))));
 router.delete('/users/:id/roles/:role', asyncHandler(async (req, res) => res.json(await service.revokeRole(req.user, parseInt(req.params.id, 10), req.params.role))));
+router.delete('/users/:id', asyncHandler(async (req, res) => res.json(await service.removeUser(req.user, parseInt(req.params.id, 10), req.body))));
 
 router.get('/audit', asyncHandler(async (req, res) => res.json(await service.listAudit(req.query))));
 

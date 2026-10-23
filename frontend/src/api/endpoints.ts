@@ -118,6 +118,7 @@ export const updateSettings = (data: Record<string, unknown>) => api.put('/api/v
 export const getUsers = (params?: Record<string, unknown>) => api.get<any[]>('/api/v1/admin/users', { params }).then((r) => r.data);
 export const grantRole = (userId: number, role: string) => api.post(`/api/v1/admin/users/${userId}/roles`, { role }).then((r) => r.data);
 export const revokeRole = (userId: number, role: string) => api.delete(`/api/v1/admin/users/${userId}/roles/${role}`).then((r) => r.data);
+export const deleteUser = (userId: number) => api.delete(`/api/v1/admin/users/${userId}`).then((r) => r.data);
 export const getAudit = (params?: Record<string, unknown>) => api.get<any[]>('/api/v1/admin/audit', { params }).then((r) => r.data);
 export const getPrompts = () => api.get<any[]>('/api/v1/admin/prompts').then((r) => r.data);
 export const updatePrompt = (actionKey: string, data: Record<string, unknown>) =>

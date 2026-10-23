@@ -1,8 +1,9 @@
-const { db, SCHEMA } = require('../../pg_db');
+const { db, SCHEMA, pool } = require('../../pg_db');
 const ia = require('../../services/ia');
 const apm = require('../../services/apm');
 const { pageParams } = require('../../utils/pagination');
 const { logAction } = require('../../utils/audit');
+const { reassignAll } = require('../../utils/userMerge');
 
 const ROLES = ['admin', 'iambassadeur', 'iaeclaireur', 'ianimateur'];
 
@@ -64,6 +65,65 @@ async function revokeRole(admin, userId, role) {
   return { user_id: userId, role, granted: false };
 }
 
+// Suppression d'un compte : réaffecte ses contributions à un doublon insensible
+// à la casse (ou à la cible fournie), puis supprime le compte.
+async function removeUser(admin, userId, data) {
+  if (userId === admin.id) throw Object.assign(new Error('Impossible de supprimer votre propre compte'), { status: 400 });
+  const target = await db.get(`SELECT id, ad_username FROM ${SCHEMA}.users WHERE id=$1`, [userId]);
+  if (!target) throw Object.assign(new Error('Utilisateur introuvable'), { status: 404 });
+
+  const isAdmin = await db.get(`SELECT 1 FROM ${SCHEMA}.user_roles WHERE user_id=$1 AND role='admin'`, [userId]);
+  if (isAdmin) throw Object.assign(new Error('Impossible de supprimer un compte administrateur'), { status: 403 });
+
+  // Cible de réaffectation : doublon (même identifiant, casse différente) ou cible explicite.
+  let keepId = data?.reassign_to ? parseInt(data.reassign_to, 10) : null;
+  if (!keepId) {
+    const dup = await db.get(
+      `SELECT id FROM ${SCHEMA}.users WHERE lower(ad_username)=lower($1) AND id <> $2 ORDER BY id ASC LIMIT 1`,
+      [target.ad_username, userId]
+    );
+    keepId = dup?.id || null;
+  }
+  if (keepId) {
+    const keep = await db.get(`SELECT id FROM ${SCHEMA}.users WHERE id=$1`, [keepId]);
+    if (!keep) throw Object.assign(new Error('Compte cible introuvable'), { status: 400 });
+    if (keep.id === userId) throw Object.assign(new Error('Compte cible identique au compte supprimé'), { status: 400 });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (keepId) await reassignAll((sql, p) => client.query(sql, p), userId, keepId);
+    await client.query(`DELETE FROM ${SCHEMA}.users WHERE id=$1`, [userId]);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    if (e.code === '23503') {
+      throw Object.assign(new Error('Ce compte possède des contributions : réaffectez-les avant de le supprimer'), { status: 409 });
+    }
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  await logAction(admin.id, 'user_delete', 'user', userId, { reassigned_to: keepId || null });
+
+  // S'il ne reste plus de doublons, crée l'index unique (filet de sécurité),
+  // pour ne pas dépendre du script de fusion exécuté manuellement.
+  try {
+    const dup = await db.get(
+      `SELECT count(*)::int AS n FROM (SELECT lower(ad_username) AS k FROM ${SCHEMA}.users GROUP BY 1 HAVING count(*) > 1) d`
+    );
+    if (dup.n === 0) {
+      await db.run(`CREATE UNIQUE INDEX IF NOT EXISTS uq_users_ad_username_lower ON ${SCHEMA}.users (lower(ad_username))`);
+    }
+  } catch (e) {
+    console.error('[ADMIN] création différée de l\'index unique :', e.message);
+  }
+
+  return { id: userId, deleted: true, reassigned_to: keepId || null };
+}
+
 async function listAudit(query) {
   const { limit, offset } = pageParams(query, { defaultLimit: 50 });
   return db.all(
@@ -99,6 +159,6 @@ async function testPrompt(user, actionKey, variables) {
 const listAiModels = () => apm.listerModelesIA();
 
 module.exports = {
-  ROLES, getSettings, updateSettings, listUsers, grantRole, revokeRole,
+  ROLES, getSettings, updateSettings, listUsers, grantRole, revokeRole, removeUser,
   listAudit, listPrompts, updatePrompt, testPrompt, listAiModels,
 };

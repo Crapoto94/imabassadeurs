@@ -16,8 +16,11 @@ function normaliserAgent(agent, username) {
   };
 }
 
-async function upsertUser(username, info) {
-  const existing = await db.get(`SELECT id FROM ${SCHEMA}.users WHERE ad_username = $1`, [username]);
+async function upsertUser(adUsername, info) {
+  const existing = await db.get(
+    `SELECT id FROM ${SCHEMA}.users WHERE lower(ad_username) = $1 ORDER BY id ASC LIMIT 1`,
+    [adUsername]
+  );
   if (existing) {
     await db.run(
       `UPDATE ${SCHEMA}.users
@@ -34,7 +37,7 @@ async function upsertUser(username, info) {
   const created = await db.get(
     `INSERT INTO ${SCHEMA}.users (ad_username, display_name, email, direction, service, last_login_at)
      VALUES ($1, $2, $3, $4, $5, now()) RETURNING id`,
-    [username, info.display_name || username, info.email, info.direction, info.service]
+    [adUsername, info.display_name || adUsername, info.email, info.direction, info.service]
   );
   return created.id;
 }
@@ -55,21 +58,26 @@ async function bootstrapAdmin(userId, username) {
 
 // POST /api/v1/auth/login — authentification AD via APM, puis JWT applicatif.
 async function login(req, res) {
-  const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Identifiant et mot de passe requis' });
+  const rawUsername = String(req.body?.username || '').trim();
+  const password = req.body?.password;
+  if (!rawUsername || !password) return res.status(400).json({ error: 'Identifiant et mot de passe requis' });
 
-  const auth = await apm.authentifierAgent(username, password);
+  // Clé applicative canonique : insensible à la casse (l'AD l'est aussi).
+  // Évite qu'un même agent obtienne deux comptes (« LRigoulat » vs « lrigoulat »).
+  const username = rawUsername.toLowerCase();
+
+  const auth = await apm.authentifierAgent(rawUsername, password);
   let userId = null;
 
   if (auth.success) {
-    const agent = await apm.getAgent(username);
-    const info = normaliserAgent(agent, username);
+    const agent = await apm.getAgent(rawUsername);
+    const info = normaliserAgent(agent, rawUsername);
     userId = await upsertUser(username, info);
   } else if (process.env.NODE_ENV !== 'production' || process.env.LOCAL_LOGIN_ENABLED === 'true') {
     // Repli de développement, ou compte de secours en production si
     // LOCAL_LOGIN_ENABLED=true (compte local seedé, AD/APM injoignable).
     const local = await db.get(
-      `SELECT id, password_hash FROM ${SCHEMA}.users WHERE ad_username = $1`,
+      `SELECT id, password_hash FROM ${SCHEMA}.users WHERE lower(ad_username) = $1 ORDER BY id ASC LIMIT 1`,
       [username]
     );
     if (local?.password_hash && (await bcrypt.compare(password, local.password_hash))) {

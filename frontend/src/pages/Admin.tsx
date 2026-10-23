@@ -1,11 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
-  createTheme, deleteTheme, getAiModels, getAudit, getPrompts, getSettings, getThemes, getUsers,
+  createTheme, deleteTheme, deleteUser, getAiModels, getAudit, getPrompts, getSettings, getThemes, getUsers,
   grantRole, revokeRole, testPrompt, updatePrompt, updateSettings, updateTheme,
 } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import {
-  Avatar, GhostButton, PrimaryButton, SectionCard, StitchAlert, StitchField, StitchInput,
+  Avatar, GhostButton, Modal, PrimaryButton, SectionCard, StitchAlert, StitchField, StitchInput,
   StitchSelect, StitchSpinner, StitchTextarea, useToast,
 } from '../components/stitch';
 import type { AiResult, Theme, ThemeScope } from '../types';
@@ -109,6 +109,9 @@ function UsersTab() {
   const [roleFilter, setRoleFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [toDelete, setToDelete] = useState<any>(null);
+  const [confirmChecked, setConfirmChecked] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -128,6 +131,22 @@ function UsersTab() {
       show(`${grant ? 'Rôle attribué' : 'Rôle retiré'} : ${role} → ${u.display_name}`);
       load();
     } catch (e) { setError(errMsg(e)); }
+  }
+
+  function askDelete(u: any) {
+    setToDelete(u);
+    setConfirmChecked(false);
+  }
+
+  async function confirmDelete() {
+    if (!toDelete) return;
+    setDeleting(true);
+    try {
+      await deleteUser(toDelete.id);
+      show(`Compte supprimé : ${toDelete.display_name}`);
+      setToDelete(null);
+      load();
+    } catch (e) { setError(errMsg(e)); } finally { setDeleting(false); }
   }
 
   return (
@@ -171,6 +190,7 @@ function UsersTab() {
                   <th className="py-3.5 px-4 font-semibold" scope="col">Direction &amp; Service</th>
                   {ROLES.map((r) => <th key={r.key} className="py-3.5 px-4 font-semibold text-center" scope="col">{r.label}</th>)}
                   <th className="py-3.5 px-4 font-semibold" scope="col">Dernière session</th>
+                  <th className="py-3.5 px-4 font-semibold" scope="col"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container text-on-surface">
@@ -205,10 +225,25 @@ function UsersTab() {
                         {u.last_login_at ? new Date(u.last_login_at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Jamais connecté'}
                       </span>
                     </td>
+                    <td className="py-3.5 px-4 text-right">
+                      {u.roles?.includes('admin') ? (
+                        <span className="font-headline text-label-sm text-outline">—</span>
+                      ) : (
+                        <button
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-error hover:bg-error-container/40 rounded-full font-headline text-label-sm transition-colors"
+                          onClick={() => askDelete(u)}
+                          type="button"
+                          title={`Supprimer ${u.display_name}`}
+                        >
+                          <span className="material-symbols-outlined text-[16px]">delete</span>
+                          <span>Supprimer</span>
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={8} className="py-8 text-center text-outline">Aucun utilisateur pour ces critères.</td></tr>
+                  <tr><td colSpan={9} className="py-8 text-center text-outline">Aucun utilisateur pour ces critères.</td></tr>
                 )}
               </tbody>
             </table>
@@ -222,6 +257,40 @@ function UsersTab() {
           <span className="font-headline text-label-md">{filtered.length} agent(s) affiché(s)</span>
         </div>
       </SectionCard>
+
+      <Modal open={!!toDelete} onClose={() => setToDelete(null)} title="Supprimer un compte" icon="delete">
+        {toDelete && (
+          <div className="space-y-4">
+            <StitchAlert kind="error">
+              Vous êtes sur le point de supprimer définitivement le compte « {toDelete.display_name} » ({toDelete.ad_username}).
+            </StitchAlert>
+            <p className="font-body text-body-sm text-on-surface-variant">
+              Ses contributions (commentaires, ressources, risques, votes…) seront réaffectées à un doublon le cas échéant. Cette action est irréversible.
+            </p>
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-secondary"
+                checked={confirmChecked}
+                onChange={(e) => setConfirmChecked(e.target.checked)}
+              />
+              <span className="font-body text-body-sm text-on-surface">Je confirme vouloir supprimer définitivement ce compte.</span>
+            </label>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <GhostButton onClick={() => setToDelete(null)}>Annuler</GhostButton>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={!confirmChecked || deleting}
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-error hover:brightness-110 text-on-error font-headline text-label-md shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-[18px]">delete</span>
+                {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
