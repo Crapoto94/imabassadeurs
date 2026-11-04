@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useGamification } from '../hooks/useGamification';
 
 const navCls = ({ isActive }: { isActive: boolean }) =>
-  `px-3 py-1.5 font-headline text-label-md rounded-full transition-colors whitespace-nowrap ${
+  `px-2.5 py-1.5 font-headline text-label-md rounded-full transition-colors whitespace-nowrap ${
     isActive
       ? 'bg-primary-container text-on-primary-container font-bold'
       : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
@@ -43,15 +43,15 @@ export default function Layout() {
             </div>
           </NavLink>
 
-          <nav className="hidden lg:flex items-center gap-1 shrink-0" aria-label="Navigation principale">
+          <nav className="hidden xl:flex items-center gap-0.5 shrink-0" aria-label="Navigation principale">
             <NavLink to="/" end className={navCls}>Accueil</NavLink>
             <NavLink to="/ressources" className={navCls}>Base documentaire</NavLink>
             <NavLink to="/experimentations" className={navCls}>Expérimentations</NavLink>
-            <NavLink to="/risques" className={navCls}>Gestion des risques</NavLink>
-            <NavLink to="/votes" className={navCls}>Votes &amp; Consultations</NavLink>
+            <NavLink to="/risques" className={navCls}>Risques</NavLink>
+            <NavLink to="/votes" className={navCls}>Votes</NavLink>
             <NavLink to="/cartographie" className={navCls}>Cartographie</NavLink>
             {isIanimateur && <NavLink to="/analyse" className={navCls}>Analyse</NavLink>}
-            {isAdmin && <NavLink to="/admin" className={navCls}>Administration</NavLink>}
+            {isAdmin && <NavLink to="/admin" className={navCls}>Admin</NavLink>}
           </nav>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -60,14 +60,6 @@ export default function Layout() {
                 <span className="material-symbols-outlined text-[14px] text-on-tertiary-fixed-variant">bolt</span>
                 <span className="font-headline text-label-sm text-on-tertiary-fixed-variant whitespace-nowrap">
                   {summary.level_label} · {summary.points} pts
-                </span>
-              </div>
-            )}
-            {user?.roles?.[0] && (
-              <div className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1 bg-primary-fixed/50 rounded-full">
-                <span className="w-2 h-2 rounded-full bg-secondary" />
-                <span className="font-headline text-label-sm text-on-primary-fixed-variant truncate max-w-[190px]">
-                  {user.roles.join(', ')}
                 </span>
               </div>
             )}
@@ -117,19 +109,21 @@ export default function Layout() {
             </div>
           </div>
         </div>
-        {/* Navigation mobile : défilement horizontal sous l'en-tête */}
-        <nav className="lg:hidden flex items-center gap-1 px-3 pb-2 overflow-x-auto" aria-label="Navigation mobile">
-          <NavLink to="/" end className={navCls}>Accueil</NavLink>
-          <NavLink to="/ressources" className={navCls}>Base documentaire</NavLink>
-          <NavLink to="/experimentations" className={navCls}>Expérimentations</NavLink>
-          <NavLink to="/risques" className={navCls}>Risques</NavLink>
-          <NavLink to="/votes" className={navCls}>Votes</NavLink>
-          <NavLink to="/cartographie" className={navCls}>Cartographie</NavLink>
-          {isIanimateur && <NavLink to="/analyse" className={navCls}>Analyse</NavLink>}
-          {isAdmin && <NavLink to="/admin" className={navCls}>Admin</NavLink>}
+        {/* Navigation mobile : défilement horizontal centré sous l'en-tête */}
+        <nav className="xl:hidden overflow-x-auto" aria-label="Navigation mobile">
+          <div className="mx-auto flex w-max items-center gap-1 px-3 pb-2">
+            <NavLink to="/" end className={navCls}>Accueil</NavLink>
+            <NavLink to="/ressources" className={navCls}>Base documentaire</NavLink>
+            <NavLink to="/experimentations" className={navCls}>Expérimentations</NavLink>
+            <NavLink to="/risques" className={navCls}>Risques</NavLink>
+            <NavLink to="/votes" className={navCls}>Votes</NavLink>
+            <NavLink to="/cartographie" className={navCls}>Cartographie</NavLink>
+            {isIanimateur && <NavLink to="/analyse" className={navCls}>Analyse</NavLink>}
+            {isAdmin && <NavLink to="/admin" className={navCls}>Admin</NavLink>}
+          </div>
         </nav>
       </header>
-      <main className="pt-16 lg:pt-16 max-lg:pt-[6.5rem] min-h-screen">
+      <main className="pt-[6.5rem] xl:pt-16 min-h-screen">
         <Outlet />
       </main>
       <footer className="no-print w-full bg-surface-container-low mt-auto py-10 shadow-[0_-1px_6px_rgba(0,0,0,0.02)]">

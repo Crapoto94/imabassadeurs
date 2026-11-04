@@ -138,7 +138,6 @@ function VoteSessionCard({ session, onChanged }: { session: VoteSession; onChang
               <span className="material-symbols-outlined text-secondary text-[20px]">add_circle</span>
               <span className="font-headline text-label-md text-on-surface">Vous avez une autre formulation à proposer ?</span>
             </div>
-            <span className="font-headline text-label-sm text-outline">Modération du Comité Éthique</span>
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-2.5">
             <div className="relative w-full">
@@ -435,16 +434,6 @@ export default function Votes() {
                 </Link>
               </SectionCard>
             )}
-
-            <div className="bg-surface-container-low p-5 rounded-2xl">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="material-symbols-outlined text-outline text-[18px]">gavel</span>
-                <span className="font-headline text-label-sm uppercase tracking-wider text-outline">Comité Éthique</span>
-              </div>
-              <p className="font-body text-body-sm text-on-surface-variant">
-                Les résultats des consultations réglementaires sont versés au dossier de la Charte et présentés au Comité Éthique Municipal.
-              </p>
-            </div>
           </aside>
         </div>
       </div>
