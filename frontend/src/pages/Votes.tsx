@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { addVoteOption, castVote, createVote, getVotes } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
@@ -13,6 +13,7 @@ function VoteSessionCard({ session, onChanged }: { session: VoteSession; onChang
   const { canInteract } = useAuth();
   const { show, Toast } = useToast();
   const [writeIn, setWriteIn] = useState('');
+  const [writeJustification, setWriteJustification] = useState('');
   const [busy, setBusy] = useState(false);
   const myOption = session.options.find((o) => o.id === session.my_option_id);
 
@@ -27,8 +28,9 @@ function VoteSessionCard({ session, onChanged }: { session: VoteSession; onChang
     if (!writeIn.trim()) return;
     setBusy(true);
     try {
-      await addVoteOption(session.id, writeIn.trim());
+      await addVoteOption(session.id, writeIn.trim(), writeJustification.trim() || undefined);
       setWriteIn('');
+      setWriteJustification('');
       show('Proposition transmise pour examen et vote collectif !');
       onChanged();
     } finally { setBusy(false); }
@@ -114,6 +116,9 @@ function VoteSessionCard({ session, onChanged }: { session: VoteSession; onChang
                     {opt.proposed_by_name && (
                       <span className="font-body text-body-sm text-on-surface-variant">Proposé par {opt.proposed_by_name}</span>
                     )}
+                    {opt.justification && (
+                      <span className="font-body text-body-sm text-outline italic">{opt.justification}</span>
+                    )}
                   </div>
                 </div>
                 <div className="text-right shrink-0">
@@ -157,6 +162,11 @@ function VoteSessionCard({ session, onChanged }: { session: VoteSession; onChang
               <span className="material-symbols-outlined text-[16px]">send</span>
             </button>
           </div>
+          <StitchInput
+            value={writeJustification} onChange={(e) => setWriteJustification(e.target.value)}
+            placeholder="Justification de l'option (facultatif) — pourquoi cette formulation ?"
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), submitOption())}
+          />
         </div>
       )}
 
@@ -186,6 +196,7 @@ function VoteSessionCard({ session, onChanged }: { session: VoteSession; onChang
 function CreateVoteModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
   const { show, Toast } = useToast();
   const [question, setQuestion] = useState('');
+  const [context, setContext] = useState('');
   const [mode, setMode] = useState<'closed' | 'open'>('closed');
   const [allowWriteIn, setAllowWriteIn] = useState(false);
   const [options, setOptions] = useState('');
@@ -193,7 +204,7 @@ function CreateVoteModal({ open, onClose, onDone }: { open: boolean; onClose: ()
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (open) { setQuestion(''); setMode('closed'); setAllowWriteIn(false); setOptions(''); setClosesAt(''); setError(''); } }, [open]);
+  useEffect(() => { if (open) { setQuestion(''); setContext(''); setMode('closed'); setAllowWriteIn(false); setOptions(''); setClosesAt(''); setError(''); } }, [open]);
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError('');
@@ -202,6 +213,7 @@ function CreateVoteModal({ open, onClose, onDone }: { open: boolean; onClose: ()
         question, mode, allow_write_in: allowWriteIn,
         options: mode === 'closed' ? options.split('\n').map((s) => s.trim()).filter(Boolean) : [],
         closes_at: closesAt || null,
+        context: context.trim() || null,
       });
       onClose();
       show('Nouvelle consultation publiée');
@@ -215,6 +227,9 @@ function CreateVoteModal({ open, onClose, onDone }: { open: boolean; onClose: ()
       <form onSubmit={submit} className="flex flex-col gap-4">
         <StitchField label="Question soumise au vote *">
           <StitchInput value={question} onChange={(e) => setQuestion(e.target.value)} required placeholder="Ex: Quelle règle de transparence pour les courriers rédigés avec IA ?" />
+        </StitchField>
+        <StitchField label="Contexte / explication de la question (facultatif)" hint="Éclaire les votants sur l'enjeu ; affiché sur le détail du scrutin.">
+          <StitchTextarea rows={2} value={context} onChange={(e) => setContext(e.target.value)} placeholder="Pourquoi cette consultation, quels éléments de contexte…" />
         </StitchField>
         <div className="grid gap-4 sm:grid-cols-2">
           <StitchField label="Mode de scrutin">
@@ -252,6 +267,8 @@ function CreateVoteModal({ open, onClose, onDone }: { open: boolean; onClose: ()
 
 export default function Votes() {
   const { isIanimateur } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [items, setItems] = useState<VoteSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'open' | 'closed'>('open');
@@ -264,6 +281,13 @@ export default function Votes() {
     try { setItems(await getVotes()); } catch (e) { setError(errMsg(e)); } finally { setLoading(false); }
   }
   useEffect(() => { load(); }, []);
+
+  const openCreateRequested = Boolean((location.state as { openCreate?: boolean } | null)?.openCreate);
+  useEffect(() => {
+    if (!openCreateRequested) return;
+    if (isIanimateur) setModalOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [openCreateRequested, isIanimateur, location.pathname, navigate]);
 
   const open = items.filter((s) => s.status === 'open');
   const closed = items.filter((s) => s.status === 'closed');

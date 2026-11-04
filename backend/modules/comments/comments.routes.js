@@ -18,7 +18,7 @@ router.post('/:commentId/like', requireAuth, requireInteract, asyncHandler(async
 }));
 
 router.post('/:entityType/:entityId', requireAuth, requireInteract, asyncHandler(async (req, res) => {
-  const id = await service.add(req.user, req.params.entityType, parseInt(req.params.entityId, 10), req.body.body, req.body.parent_id);
+  const id = await service.add(req.user, req.params.entityType, parseInt(req.params.entityId, 10), req.body.body, req.body.parent_id, req.body.source_ref);
   res.status(201).json({ id });
 }));
 

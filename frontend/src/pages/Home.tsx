@@ -536,7 +536,7 @@ export default function Home() {
                   <button
                     key={to + label}
                     className="flex flex-col items-center justify-center gap-0.5 py-1 px-1.5 rounded-lg hover:bg-surface-container-low transition-colors text-on-surface-variant text-center"
-                    onClick={() => navigate(to)} type="button"
+                    onClick={() => navigate(to, { state: { openCreate: true } })} type="button"
                   >
                     <span className={`material-symbols-outlined text-[18px] ${color}`}>{icon}</span>
                     <span className="font-headline text-label-sm leading-tight">{label}</span>
@@ -783,7 +783,7 @@ export default function Home() {
               {canInteract && (
                 <Link
                   to="/ressources"
-                  state={{ openCreateResource: true }}
+                  state={{ openCreate: true }}
                   className="mt-2 w-full py-2.5 px-4 bg-surface-container-lowest text-primary hover:bg-surface-bright rounded-full font-headline text-label-md font-bold shadow-sm transition-all flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined text-[18px]">cloud_upload</span>
@@ -809,7 +809,7 @@ export default function Home() {
             <button
               key={to + full}
               className="flex items-center gap-3 p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-left"
-              onClick={() => { setComposerOpen(false); navigate(to); }} type="button"
+              onClick={() => { setComposerOpen(false); navigate(to, { state: { openCreate: true } }); }} type="button"
             >
               <span className={`material-symbols-outlined text-[24px] ${color}`}>{icon}</span>
               <span className="font-headline text-label-md text-on-surface">{full}</span>

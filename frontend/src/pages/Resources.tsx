@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Pagination from '../components/Pagination';
 import ResourceCard from '../components/ResourceCard';
-import { createResource, getResources, getThemes } from '../api/endpoints';
+import { createResource, getExperiments, getResources, getRisks, getThemes } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -21,10 +21,24 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
   const [file, setFile] = useState<File | null>(null);
   const [level, setLevel] = useState<string>('debutant');
   const [themeIds, setThemeIds] = useState<number[]>([]);
+  const [source, setSource] = useState('');
+  const [publishedAt, setPublishedAt] = useState('');
+  const [contentType, setContentType] = useState('');
+  const [readingEffort, setReadingEffort] = useState('');
+  const [relatedValue, setRelatedValue] = useState('');
+  const [experiments, setExperiments] = useState<any[]>([]);
+  const [risks, setRisks] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (open) { setTitle(''); setDescription(''); setUrl(''); setFile(null); setError(''); setKind('link'); setLevel('debutant'); setThemeIds([]); } }, [open]);
+  useEffect(() => {
+    if (open) {
+      setTitle(''); setDescription(''); setUrl(''); setFile(null); setError(''); setKind('link'); setLevel('debutant'); setThemeIds([]);
+      setSource(''); setPublishedAt(''); setContentType(''); setReadingEffort(''); setRelatedValue('');
+      getExperiments().then(setExperiments).catch(() => {});
+      getRisks().then(setRisks).catch(() => {});
+    }
+  }, [open]);
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(''); setBusy(true);
@@ -37,6 +51,15 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
       form.append('theme_ids', JSON.stringify(themeIds));
       if (kind === 'link') form.append('url', url);
       if (kind === 'pdf' && file) form.append('file', file);
+      if (source.trim()) form.append('source', source.trim());
+      if (publishedAt) form.append('published_at', publishedAt);
+      if (contentType) form.append('content_type', contentType);
+      if (readingEffort) form.append('reading_effort', readingEffort);
+      if (relatedValue) {
+        const [rt, rid] = relatedValue.split(':');
+        form.append('related_type', rt);
+        form.append('related_id', rid);
+      }
       await createResource(form);
       onClose();
       show('Votre ressource a été publiée !');
@@ -93,6 +116,57 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
               placeholder="Ex: Ce retour d'expérience permet d'éviter les pièges de profilage des usagers pour notre futur guichet unique…" />
           </StitchField>
         </div>
+
+        <details className="rounded-xl border border-surface-container bg-surface-container-low/60 p-3">
+          <summary className="cursor-pointer select-none font-headline text-label-md text-on-surface-variant">
+            Compléments (facultatif)
+          </summary>
+          <div className="mt-3 flex flex-col gap-3">
+            <StitchField label="Source / auteur-éditeur (facultatif)" hint="Pour juger la provenance et la fiabilité du document.">
+              <StitchInput value={source} onChange={(e) => setSource(e.target.value)} placeholder="Ex : CNIL, INRIA, ministère…" />
+            </StitchField>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <StitchField label="Date de publication de la source (facultatif)" hint="Pour trier par fraîcheur (suivre l'actualité).">
+                <StitchInput type="date" value={publishedAt} onChange={(e) => setPublishedAt(e.target.value)} />
+              </StitchField>
+              <StitchField label="Sous-type de contenu (facultatif)" hint="Précise le format au-delà de PDF/lien.">
+                <StitchSelect value={contentType} onChange={(e) => setContentType(e.target.value)}>
+                  <option value="">Non précisé</option>
+                  <option value="article">Article</option>
+                  <option value="rapport">Rapport / étude</option>
+                  <option value="video">Vidéo</option>
+                  <option value="mooc">MOOC / formation</option>
+                  <option value="jurisprudence">Jurisprudence / texte officiel</option>
+                  <option value="autre">Autre</option>
+                </StitchSelect>
+              </StitchField>
+            </div>
+            <StitchField label="Durée / effort de lecture (facultatif)" hint="Aide à planifier la montée en compétences.">
+              <StitchSelect value={readingEffort} onChange={(e) => setReadingEffort(e.target.value)}>
+                <option value="">Non précisé</option>
+                <option value="court">Rapide (moins de 15 min)</option>
+                <option value="moyen">Moyen (15 à 45 min)</option>
+                <option value="long">Long (plus de 45 min)</option>
+              </StitchSelect>
+            </StitchField>
+            <StitchField label="Entité liée (facultatif)" hint="Relie ce document à une expérimentation ou un risque existant.">
+              <StitchSelect value={relatedValue} onChange={(e) => setRelatedValue(e.target.value)}>
+                <option value="">Aucune</option>
+                {experiments.length > 0 && (
+                  <optgroup label="Expérimentations">
+                    {experiments.map((x) => <option key={`e${x.id}`} value={`experiment:${x.id}`}>{x.title}</option>)}
+                  </optgroup>
+                )}
+                {risks.length > 0 && (
+                  <optgroup label="Risques">
+                    {risks.map((x) => <option key={`r${x.id}`} value={`risk:${x.id}`}>{x.title}</option>)}
+                  </optgroup>
+                )}
+              </StitchSelect>
+            </StitchField>
+          </div>
+        </details>
+
         {error && <StitchAlert kind="error">{error}</StitchAlert>}
         <div className="flex items-center justify-end gap-3 pt-2">
           <button type="button" onClick={onClose} className="px-5 py-2 rounded-full font-headline text-label-md text-on-surface-variant hover:bg-surface-container transition-all">
@@ -125,7 +199,7 @@ export default function Resources() {
 
   useEffect(() => { getThemes({ scope: 'resource' }).then(setThemes).catch(() => {}); }, []);
 
-  const openCreateResource = Boolean((location.state as { openCreateResource?: boolean } | null)?.openCreateResource);
+  const openCreateResource = Boolean((location.state as { openCreate?: boolean } | null)?.openCreate);
   useEffect(() => {
     if (!openCreateResource) return;
     setModalOpen(true);

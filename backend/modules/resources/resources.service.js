@@ -104,10 +104,21 @@ async function create(user, data, file) {
 
   const lvl = ['debutant', 'intermediaire', 'avance'].includes(level) ? level : 'debutant';
   const status = 'published';
+  // Champs facultatifs
+  const content_type = ['article', 'rapport', 'video', 'mooc', 'jurisprudence', 'autre'].includes(data.content_type) ? data.content_type : null;
+  const reading_effort = ['court', 'moyen', 'long'].includes(data.reading_effort) ? data.reading_effort : null;
+  const related_type = ['experiment', 'risk'].includes(data.related_type) ? data.related_type : null;
+  const related_id = related_type && parseInt(data.related_id, 10) ? parseInt(data.related_id, 10) : null;
+  const source = data.source && String(data.source).trim() ? String(data.source).trim() : null;
+  const published_at = data.published_at ? String(data.published_at) : null;
+
   const row = await db.get(
-    `INSERT INTO ${SCHEMA}.resources (title, description, kind, file_path, url, proposed_by, status, level)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-    [title, description, kind, file ? file.filename : null, kind === 'link' ? url : null, user.id, status, lvl]
+    `INSERT INTO ${SCHEMA}.resources
+       (title, description, kind, file_path, url, proposed_by, status, level,
+        source, published_at, content_type, reading_effort, related_type, related_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+    [title, description, kind, file ? file.filename : null, kind === 'link' ? url : null, user.id, status, lvl,
+      source, published_at, content_type, reading_effort, related_type, related_id]
   );
   await logAction(user.id, 'resource_create', 'resource', row.id, { status, level: lvl });
   await themes.setEntityThemes('resource', row.id, data.theme_ids);

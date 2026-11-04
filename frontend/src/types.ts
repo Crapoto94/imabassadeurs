@@ -41,6 +41,12 @@ export interface Resource {
   comments_count: number;
   my_rating?: number | null;
   my_progress?: number;
+  source?: string | null;
+  published_at?: string | null;
+  content_type?: string | null;
+  reading_effort?: string | null;
+  related_type?: string | null;
+  related_id?: number | null;
   created_at: string;
   edited_at?: string | null;
   themes?: Theme[];
@@ -62,6 +68,13 @@ export interface Experiment {
   created_at: string;
   participants?: { id: number; display_name: string }[];
   attachments?: ExperimentAttachment[];
+  owner_service?: string | null;
+  ai_tool?: string | null;
+  ai_hosting?: string | null;
+  personal_data?: boolean | null;
+  expected_benefits?: string | null;
+  feedback?: string | null;
+  related_risk_id?: number | null;
   edited_at?: string | null;
   themes?: Theme[];
 }
@@ -87,6 +100,10 @@ export interface Risk {
   proposed_by_name: string;
   amendments_count: number;
   comments_count: number;
+  mitigation?: string | null;
+  affected_data?: string | null;
+  related_experiment_id?: number | null;
+  source_ref?: string | null;
   created_at: string;
   amendments?: { id: number; importance: number; probability: number; amended_by_name: string; reason: string | null; created_at: string }[];
   edited_at?: string | null;
@@ -98,6 +115,7 @@ export interface VoteOption {
   label: string;
   proposed_by: number | null;
   proposed_by_name: string | null;
+  justification?: string | null;
   votes: number;
 }
 
@@ -109,6 +127,7 @@ export interface VoteSession {
   status: 'open' | 'closed';
   created_by: number;
   created_by_name: string;
+  context?: string | null;
   opens_at: string;
   closes_at: string | null;
   total_votes: number;
@@ -124,6 +143,7 @@ export interface Comment {
   author_name: string;
   likes: number;
   liked: boolean;
+  source_ref?: string | null;
   created_at: string;
   replies: Comment[];
   edited_at?: string | null;

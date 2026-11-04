@@ -66,7 +66,14 @@ function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment
               </div>
             </div>
           ) : (
-            <p className="whitespace-pre-wrap font-body text-body-sm text-on-surface-variant">{comment.body}</p>
+            <>
+              <p className="whitespace-pre-wrap font-body text-body-sm text-on-surface-variant">{comment.body}</p>
+              {comment.source_ref && (
+                <p className="flex items-center gap-1 font-body text-body-sm text-outline text-[11px]">
+                  <span className="material-symbols-outlined text-[14px]">link</span>{comment.source_ref}
+                </p>
+              )}
+            </>
           )}
           {canInteract && !editing && (
             <div className="flex items-center gap-3 pt-1 text-[12px] font-headline text-label-sm text-outline">
@@ -116,6 +123,7 @@ export default function CommentThread({ entityType, entityId }: { entityType: st
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
+  const [sourceRef, setSourceRef] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -133,7 +141,7 @@ export default function CommentThread({ entityType, entityId }: { entityType: st
   async function submit() {
     if (!body.trim()) return;
     setBusy(true);
-    try { await addComment(entityType, entityId, body); setBody(''); await load(); }
+    try { await addComment(entityType, entityId, body, undefined, sourceRef.trim() || undefined); setBody(''); setSourceRef(''); await load(); }
     catch (e) { setError(errMsg(e)); } finally { setBusy(false); }
   }
 
@@ -150,18 +158,25 @@ export default function CommentThread({ entityType, entityId }: { entityType: st
       {canInteract ? (
         <div className="flex items-center gap-2">
           <Avatar name={user?.display_name} size={28} />
-          <div className="relative flex-1">
+          <div className="relative flex-1 space-y-1.5">
+            <div className="relative">
+              <input
+                className="w-full pl-3 pr-9 py-2 bg-surface-container-lowest rounded-full font-body text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-secondary/20 shadow-sm"
+                placeholder="Ajouter une observation bienveillante…" value={body} onChange={(e) => setBody(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submit()}
+              />
+              <button
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-secondary hover:text-secondary-container disabled:opacity-50"
+                onClick={submit} disabled={busy || !body.trim()} aria-label="Publier" type="button"
+              >
+                <span className="material-symbols-outlined text-[20px]">send</span>
+              </button>
+            </div>
             <input
-              className="w-full pl-3 pr-9 py-2 bg-surface-container-lowest rounded-full font-body text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-secondary/20 shadow-sm"
-              placeholder="Ajouter une observation bienveillante…" value={body} onChange={(e) => setBody(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && submit()}
+              className="w-full px-3 py-1.5 bg-surface-container-low rounded-full font-body text-body-sm text-on-surface placeholder:text-outline focus:outline-none"
+              placeholder="Référence / source (facultatif)"
+              value={sourceRef} onChange={(e) => setSourceRef(e.target.value)}
             />
-            <button
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-secondary hover:text-secondary-container disabled:opacity-50"
-              onClick={submit} disabled={busy || !body.trim()} aria-label="Publier" type="button"
-            >
-              <span className="material-symbols-outlined text-[20px]">send</span>
-            </button>
           </div>
         </div>
       ) : (

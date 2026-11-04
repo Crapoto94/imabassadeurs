@@ -1,9 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Pagination from '../components/Pagination';
 import CommentThread from '../components/CommentThread';
 import AiPanel from '../components/AiPanel';
-import { createRisk, getRisks, getThemes, synthRisk } from '../api/endpoints';
+import { createRisk, getExperiments, getRisks, getThemes, synthRisk } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -134,15 +134,32 @@ function DeclareRiskModal({ open, onClose, onDone, themes }: { open: boolean; on
   const [importance, setImportance] = useState(2);
   const [probability, setProbability] = useState(2);
   const [themeIds, setThemeIds] = useState<number[]>([]);
+  const [mitigation, setMitigation] = useState('');
+  const [affectedData, setAffectedData] = useState('');
+  const [relatedExperimentId, setRelatedExperimentId] = useState('');
+  const [sourceRef, setSourceRef] = useState('');
+  const [experiments, setExperiments] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (open) { setTitle(''); setDescription(''); setConcerns(true); setImportance(2); setProbability(2); setThemeIds([]); setError(''); } }, [open]);
+  useEffect(() => {
+    if (open) {
+      setTitle(''); setDescription(''); setConcerns(true); setImportance(2); setProbability(2); setThemeIds([]); setError('');
+      setMitigation(''); setAffectedData(''); setRelatedExperimentId(''); setSourceRef('');
+      getExperiments().then(setExperiments).catch(() => {});
+    }
+  }, [open]);
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError('');
     try {
-      await createRisk({ title, description, concerns_ivry: concerns, importance, probability, theme_ids: themeIds } as any);
+      await createRisk({
+        title, description, concerns_ivry: concerns, importance, probability, theme_ids: themeIds,
+        mitigation: mitigation.trim() || null,
+        affected_data: affectedData.trim() || null,
+        related_experiment_id: relatedExperimentId ? Number(relatedExperimentId) : null,
+        source_ref: sourceRef.trim() || null,
+      } as any);
       onClose();
       show('Risque soumis au collège des IAmbassadeurs');
       onDone();
@@ -188,6 +205,30 @@ function DeclareRiskModal({ open, onClose, onDone, themes }: { open: boolean; on
         <StitchField label="Thèmes">
           <ThemePicker themes={themes} value={themeIds} onChange={setThemeIds} />
         </StitchField>
+
+        <details className="rounded-xl border border-surface-container bg-surface-container-low/60 p-3">
+          <summary className="cursor-pointer select-none font-headline text-label-md text-on-surface-variant">
+            Compléments (facultatif)
+          </summary>
+          <div className="mt-3 flex flex-col gap-3">
+            <StitchField label="Mesures d'atténuation / préconisations (facultatif)" hint="Un garde-fou concret, exploitable pour la Charte.">
+              <StitchTextarea rows={2} value={mitigation} onChange={(e) => setMitigation(e.target.value)} placeholder="Ex : validation humaine obligatoire avant tout envoi…" />
+            </StitchField>
+            <StitchField label="Données / populations concernées (facultatif)" hint="Précise l'impact réel (données personnelles, publics vulnérables).">
+              <StitchTextarea rows={2} value={affectedData} onChange={(e) => setAffectedData(e.target.value)} placeholder="Ex : usagers du CCAS, données de santé…" />
+            </StitchField>
+            <StitchField label="Expérimentation liée (facultatif)" hint="Relie le risque au cas d'usage qui le déclenche.">
+              <StitchSelect value={relatedExperimentId} onChange={(e) => setRelatedExperimentId(e.target.value)}>
+                <option value="">Aucune</option>
+                {experiments.map((x) => <option key={x.id} value={String(x.id)}>{x.title}</option>)}
+              </StitchSelect>
+            </StitchField>
+            <StitchField label="Sources / références (facultatif)" hint="Texte légal, incident, CGU… pour crédibiliser le signalement.">
+              <StitchInput value={sourceRef} onChange={(e) => setSourceRef(e.target.value)} placeholder="Ex : article de loi, rapport, lien…" />
+            </StitchField>
+          </div>
+        </details>
+
         {error && <StitchAlert kind="error">{error}</StitchAlert>}
         <div className="flex items-center justify-end gap-3 pt-2">
           <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-full hover:bg-surface-container text-on-surface-variant font-headline text-label-md transition-colors">
@@ -202,6 +243,8 @@ function DeclareRiskModal({ open, onClose, onDone, themes }: { open: boolean; on
 
 export default function Risks() {
   const { canInteract } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [items, setItems] = useState<Risk[]>([]);
   const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState(0);
@@ -214,6 +257,13 @@ export default function Risks() {
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => { getThemes({ scope: 'risk' }).then(setThemes).catch(() => {}); }, []);
+
+  const openCreateRequested = Boolean((location.state as { openCreate?: boolean } | null)?.openCreate);
+  useEffect(() => {
+    if (!openCreateRequested) return;
+    setModalOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [openCreateRequested, location.pathname, navigate]);
 
   async function load() {
     setLoading(true);

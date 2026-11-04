@@ -69,8 +69,8 @@ export const synthRisk = (id: number) =>
 export const getVotes = () => api.get<VoteSession[]>('/api/v1/votes').then((r) => r.data);
 export const getVote = (id: number) => api.get<VoteSession>(`/api/v1/votes/${id}`).then((r) => r.data);
 export const createVote = (data: Record<string, unknown>) => api.post('/api/v1/votes', data).then((r) => r.data);
-export const addVoteOption = (id: number, label: string) =>
-  api.post(`/api/v1/votes/${id}/options`, { label }).then((r) => r.data);
+export const addVoteOption = (id: number, label: string, justification?: string) =>
+  api.post(`/api/v1/votes/${id}/options`, { label, justification }).then((r) => r.data);
 export const castVote = (id: number, optionId: number) =>
   api.post(`/api/v1/votes/${id}/vote`, { option_id: optionId }).then((r) => r.data);
 export const closeVote = (id: number) => api.post(`/api/v1/votes/${id}/close`).then((r) => r.data);
@@ -78,8 +78,8 @@ export const closeVote = (id: number) => api.post(`/api/v1/votes/${id}/close`).t
 // ── Commentaires ──
 export const getComments = (type: string, id: number) =>
   api.get<Comment[]>(`/api/v1/comments/${type}/${id}`).then((r) => r.data);
-export const addComment = (type: string, id: number, body: string, parentId?: number) =>
-  api.post(`/api/v1/comments/${type}/${id}`, { body, parent_id: parentId }).then((r) => r.data);
+export const addComment = (type: string, id: number, body: string, parentId?: number, sourceRef?: string) =>
+  api.post(`/api/v1/comments/${type}/${id}`, { body, parent_id: parentId, source_ref: sourceRef }).then((r) => r.data);
 export const likeComment = (commentId: number) =>
   api.post<{ liked: boolean }>(`/api/v1/comments/${commentId}/like`).then((r) => r.data);
 

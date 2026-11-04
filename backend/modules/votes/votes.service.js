@@ -3,7 +3,7 @@ const { logAction } = require('../../utils/audit');
 
 async function optionsWithCounts(sessionId) {
   return db.all(
-    `SELECT o.id, o.label, o.proposed_by, us.display_name AS proposed_by_name,
+    `SELECT o.id, o.label, o.proposed_by, o.justification, us.display_name AS proposed_by_name,
             (SELECT count(*)::int FROM ${SCHEMA}.vote_responses v WHERE v.option_id = o.id) AS votes
        FROM ${SCHEMA}.vote_options o
        LEFT JOIN ${SCHEMA}.users us ON us.id = o.proposed_by
@@ -54,16 +54,16 @@ async function create(user, data) {
   if (!(user.roles.includes('ianimateur') || user.roles.includes('admin'))) {
     throw Object.assign(new Error('Réservé aux IAnimateurs'), { status: 403 });
   }
-  const { question, mode, allow_write_in, options, closes_at } = data;
+  const { question, mode, allow_write_in, options, closes_at, context } = data;
   if (!question) throw Object.assign(new Error('Question requise'), { status: 400 });
   if (!['closed', 'open'].includes(mode)) throw Object.assign(new Error('Mode invalide'), { status: 400 });
   if (mode === 'closed' && !(Array.isArray(options) && options.length >= 2)) {
     throw Object.assign(new Error('Au moins deux options sont requises en mode fermé'), { status: 400 });
   }
   const s = await db.get(
-    `INSERT INTO ${SCHEMA}.vote_sessions (question, mode, allow_write_in, created_by, closes_at)
-     VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-    [question, mode, !!allow_write_in, user.id, closes_at || null]
+    `INSERT INTO ${SCHEMA}.vote_sessions (question, mode, allow_write_in, created_by, closes_at, context)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+    [question, mode, !!allow_write_in, user.id, closes_at || null, context && String(context).trim() ? String(context).trim() : null]
   );
   if (mode === 'closed') {
     for (const label of options) {
@@ -79,7 +79,7 @@ async function create(user, data) {
   return s.id;
 }
 
-async function addOption(user, sessionId, label) {
+async function addOption(user, sessionId, label, justification) {
   if (!label || !String(label).trim()) throw Object.assign(new Error('Libellé requis'), { status: 400 });
   const s = await db.get(`SELECT mode, status, allow_write_in FROM ${SCHEMA}.vote_sessions WHERE id=$1`, [sessionId]);
   if (!s) throw Object.assign(new Error('Session introuvable'), { status: 404 });
@@ -87,8 +87,8 @@ async function addOption(user, sessionId, label) {
   const allowed = s.mode === 'open' || (s.mode === 'closed' && s.allow_write_in);
   if (!allowed) throw Object.assign(new Error('Ajout d’option non autorisé pour cette session'), { status: 403 });
   const row = await db.get(
-    `INSERT INTO ${SCHEMA}.vote_options (session_id, label, proposed_by) VALUES ($1,$2,$3) RETURNING id`,
-    [sessionId, String(label).trim(), user.id]
+    `INSERT INTO ${SCHEMA}.vote_options (session_id, label, proposed_by, justification) VALUES ($1,$2,$3,$4) RETURNING id`,
+    [sessionId, String(label).trim(), user.id, justification && String(justification).trim() ? String(justification).trim() : null]
   );
   return { id: row.id };
 }

@@ -15,6 +15,7 @@ export default function VoteDetail() {
   const [s, setS] = useState<VoteSession | null>(null);
   const [error, setError] = useState('');
   const [newOption, setNewOption] = useState('');
+  const [newJustification, setNewJustification] = useState('');
   const [editing, setEditing] = useState(false);
   const [question, setQuestion] = useState('');
 
@@ -63,6 +64,7 @@ export default function VoteDetail() {
       )}
 
       <Card className="mb-6 space-y-3 p-5">
+        {s.context && <p className="text-sm text-slate-600">{s.context}</p>}
         {s.options.length === 0 && <p className="text-sm text-slate-500">Aucune option proposée pour l’instant.</p>}
         {s.options.map((o) => {
           const pct = total ? Math.round((o.votes / total) * 100) : 0;
@@ -86,6 +88,7 @@ export default function VoteDetail() {
                 </div>
                 <span className="text-sm font-semibold text-slate-700">{o.votes} ({pct}%)</span>
               </div>
+              {o.justification && <p className="mt-1 text-xs text-slate-500">{o.justification}</p>}
               <div className="mt-2 h-2 w-full rounded-full bg-slate-100" role="img" aria-label={`${o.label} : ${pct}%`}>
                 <div className="h-2 rounded-full bg-ville-500" style={{ width: `${pct}%` }} />
               </div>
@@ -98,9 +101,12 @@ export default function VoteDetail() {
       {canAddOption && (
         <Card className="mb-6 p-5">
           <h3 className="mb-2 flex items-center gap-2 font-semibold"><Plus size={16} /> Proposer une option</h3>
-          <div className="flex gap-2">
-            <Input value={newOption} onChange={(e) => setNewOption(e.target.value)} placeholder="Votre proposition" />
-            <Button onClick={async () => { if (newOption.trim()) { await addVoteOption(sid, newOption); setNewOption(''); load(); } }}>Ajouter</Button>
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Input value={newOption} onChange={(e) => setNewOption(e.target.value)} placeholder="Votre proposition" />
+              <Button onClick={async () => { if (newOption.trim()) { await addVoteOption(sid, newOption, newJustification.trim() || undefined); setNewOption(''); setNewJustification(''); load(); } }}>Ajouter</Button>
+            </div>
+            <Input value={newJustification} onChange={(e) => setNewJustification(e.target.value)} placeholder="Justification de l'option (facultatif)" />
           </div>
         </Card>
       )}

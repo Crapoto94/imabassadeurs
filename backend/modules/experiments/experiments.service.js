@@ -56,10 +56,23 @@ async function getById(id, user) {
 async function create(user, data) {
   const { title, description, objective, target_date } = data;
   if (!title || !description || !objective) throw Object.assign(new Error('Titre, description et objectif requis'), { status: 400 });
+  // Champs facultatifs
+  const owner_service = data.owner_service && String(data.owner_service).trim() ? String(data.owner_service).trim() : null;
+  const ai_tool = data.ai_tool && String(data.ai_tool).trim() ? String(data.ai_tool).trim() : null;
+  const ai_hosting = ['france', 'ue', 'hors_ue', 'inconnu'].includes(data.ai_hosting) ? data.ai_hosting : null;
+  const personal_data = data.personal_data === true || data.personal_data === 'true' ? true
+    : (data.personal_data === false || data.personal_data === 'false' ? false : null);
+  const expected_benefits = data.expected_benefits && String(data.expected_benefits).trim() ? String(data.expected_benefits).trim() : null;
+  const feedback = data.feedback && String(data.feedback).trim() ? String(data.feedback).trim() : null;
+  const related_risk_id = parseInt(data.related_risk_id, 10) || null;
+
   const row = await db.get(
-    `INSERT INTO ${SCHEMA}.experiments (title, description, objective, target_date, created_by)
-     VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-    [title, description, objective, target_date || null, user.id]
+    `INSERT INTO ${SCHEMA}.experiments
+       (title, description, objective, target_date, created_by,
+        owner_service, ai_tool, ai_hosting, personal_data, expected_benefits, feedback, related_risk_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+    [title, description, objective, target_date || null, user.id,
+      owner_service, ai_tool, ai_hosting, personal_data, expected_benefits, feedback, related_risk_id]
   );
   await logAction(user.id, 'experiment_create', 'experiment', row.id, null);
   await themes.setEntityThemes('experiment', row.id, data.theme_ids);

@@ -20,7 +20,7 @@ async function entityAuthor(entityType, entityId) {
 
 async function list(entityType, entityId, currentUserId) {
   const comments = await db.all(
-    `SELECT c.id, c.entity_type, c.entity_id, c.parent_id, c.body, c.created_at, c.edited_at,
+    `SELECT c.id, c.entity_type, c.entity_id, c.parent_id, c.body, c.created_at, c.edited_at, c.source_ref,
             c.author_id, u.display_name AS author_name,
             (SELECT count(*)::int FROM ${SCHEMA}.comment_likes l WHERE l.comment_id = c.id) AS likes,
             EXISTS(SELECT 1 FROM ${SCHEMA}.comment_likes l WHERE l.comment_id = c.id AND l.user_id = $3) AS liked
@@ -39,14 +39,15 @@ async function list(entityType, entityId, currentUserId) {
   return roots;
 }
 
-async function add(user, entityType, entityId, body, parentId = null) {
+async function add(user, entityType, entityId, body, parentId = null, sourceRef = null) {
   if (!ENTITY_TABLES[entityType]) throw Object.assign(new Error('Type d’entité invalide'), { status: 400 });
   if (!body || !body.trim()) throw Object.assign(new Error('Commentaire vide'), { status: 400 });
 
   const row = await db.get(
-    `INSERT INTO ${SCHEMA}.comments (entity_type, entity_id, parent_id, author_id, body)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [entityType, entityId, parentId || null, user.id, body.trim()]
+    `INSERT INTO ${SCHEMA}.comments (entity_type, entity_id, parent_id, author_id, body, source_ref)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [entityType, entityId, parentId || null, user.id, body.trim(),
+      sourceRef && String(sourceRef).trim() ? String(sourceRef).trim() : null]
   );
 
   const ownerId = await entityAuthor(entityType, entityId);

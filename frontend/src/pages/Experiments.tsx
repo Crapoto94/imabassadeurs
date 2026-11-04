@@ -1,9 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Pagination from '../components/Pagination';
 import CommentThread from '../components/CommentThread';
 import AiPanel from '../components/AiPanel';
-import { createExperiment, getExperiments, getThemes, joinExperiment, synthExperiment } from '../api/endpoints';
+import { createExperiment, getExperiments, getRisks, getThemes, joinExperiment, synthExperiment } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -163,15 +163,38 @@ function CreateExperimentModal({ open, onClose, onDone, themes }: { open: boolea
   const [targetDate, setTargetDate] = useState('');
   const [consent, setConsent] = useState(false);
   const [themeIds, setThemeIds] = useState<number[]>([]);
+  const [ownerService, setOwnerService] = useState('');
+  const [aiTool, setAiTool] = useState('');
+  const [aiHosting, setAiHosting] = useState('');
+  const [personalData, setPersonalData] = useState('');
+  const [expectedBenefits, setExpectedBenefits] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [relatedRiskId, setRelatedRiskId] = useState('');
+  const [risks, setRisks] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (open) { setTitle(''); setDescription(''); setObjective(''); setTargetDate(''); setConsent(false); setThemeIds([]); setError(''); } }, [open]);
+  useEffect(() => {
+    if (open) {
+      setTitle(''); setDescription(''); setObjective(''); setTargetDate(''); setConsent(false); setThemeIds([]); setError('');
+      setOwnerService(''); setAiTool(''); setAiHosting(''); setPersonalData(''); setExpectedBenefits(''); setFeedback(''); setRelatedRiskId('');
+      getRisks().then(setRisks).catch(() => {});
+    }
+  }, [open]);
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError('');
     try {
-      await createExperiment({ title, description, objective, target_date: targetDate || null, theme_ids: themeIds });
+      await createExperiment({
+        title, description, objective, target_date: targetDate || null, theme_ids: themeIds,
+        owner_service: ownerService.trim() || null,
+        ai_tool: aiTool.trim() || null,
+        ai_hosting: aiHosting || null,
+        personal_data: personalData === '' ? null : personalData === 'true',
+        expected_benefits: expectedBenefits.trim() || null,
+        feedback: feedback.trim() || null,
+        related_risk_id: relatedRiskId ? Number(relatedRiskId) : null,
+      });
       onClose();
       show('Fiche projet transmise pour arbitrage par le Comité IAmbassadeurs');
       onDone();
@@ -200,6 +223,51 @@ function CreateExperimentModal({ open, onClose, onDone, themes }: { open: boolea
         <StitchField label="Thèmes">
           <ThemePicker themes={themes} value={themeIds} onChange={setThemeIds} />
         </StitchField>
+
+        <details className="rounded-xl border border-surface-container bg-surface-container-low/60 p-3">
+          <summary className="cursor-pointer select-none font-headline text-label-md text-on-surface-variant">
+            Compléments (facultatif)
+          </summary>
+          <div className="mt-3 flex flex-col gap-3">
+            <StitchField label="Service / direction pilote (facultatif)" hint="Qui porte et bénéficie du test.">
+              <StitchInput value={ownerService} onChange={(e) => setOwnerService(e.target.value)} placeholder="Ex : Direction Éducation" />
+            </StitchField>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <StitchField label="Outil / fournisseur IA (facultatif)" hint="Pour l'observatoire des outils et l'analyse de souveraineté.">
+                <StitchInput value={aiTool} onChange={(e) => setAiTool(e.target.value)} placeholder="Ex : ChatGPT Enterprise, Mistral…" />
+              </StitchField>
+              <StitchField label="Hébergement de l'outil (facultatif)" hint="Indicateur de souveraineté des données.">
+                <StitchSelect value={aiHosting} onChange={(e) => setAiHosting(e.target.value)}>
+                  <option value="">Non précisé</option>
+                  <option value="france">France</option>
+                  <option value="ue">Union européenne</option>
+                  <option value="hors_ue">Hors UE</option>
+                  <option value="inconnu">Inconnu</option>
+                </StitchSelect>
+              </StitchField>
+            </div>
+            <StitchField label="Données personnelles traitées ? (facultatif)" hint="Aide à qualifier le risque RGPD.">
+              <StitchSelect value={personalData} onChange={(e) => setPersonalData(e.target.value)}>
+                <option value="">Non renseigné</option>
+                <option value="true">Oui</option>
+                <option value="false">Non</option>
+              </StitchSelect>
+            </StitchField>
+            <StitchField label="Bénéfices / indicateurs attendus (facultatif)" hint="Ce que le test doit démontrer (gains réels).">
+              <StitchTextarea rows={2} value={expectedBenefits} onChange={(e) => setExpectedBenefits(e.target.value)} placeholder="Ex : -50 % de temps de tri, meilleure satisfaction des usagers…" />
+            </StitchField>
+            <StitchField label="Bilan / retour d'expérience (facultatif)" hint="À compléter après le test (résultats, limites).">
+              <StitchTextarea rows={2} value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="Résultats observés, limites, conditions de réussite…" />
+            </StitchField>
+            <StitchField label="Risque lié (facultatif)" hint="Relie ce cas d'usage à un risque déjà signalé.">
+              <StitchSelect value={relatedRiskId} onChange={(e) => setRelatedRiskId(e.target.value)}>
+                <option value="">Aucun</option>
+                {risks.map((r) => <option key={r.id} value={String(r.id)}>{r.title}</option>)}
+              </StitchSelect>
+            </StitchField>
+          </div>
+        </details>
+
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" className="rounded text-secondary focus:ring-0 w-4 h-4" checked={consent} onChange={(e) => setConsent(e.target.checked)} required />
           <span className="font-body text-body-sm text-outline">
@@ -220,6 +288,8 @@ function CreateExperimentModal({ open, onClose, onDone, themes }: { open: boolea
 
 export default function Experiments() {
   const { canInteract } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [items, setItems] = useState<Experiment[]>([]);
   const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState(0);
@@ -232,6 +302,13 @@ export default function Experiments() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => { getThemes({ scope: 'experiment' }).then(setThemes).catch(() => {}); }, []);
+
+  const openCreateRequested = Boolean((location.state as { openCreate?: boolean } | null)?.openCreate);
+  useEffect(() => {
+    if (!openCreateRequested) return;
+    setModalOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [openCreateRequested, location.pathname, navigate]);
 
   async function load() {
     setLoading(true);

@@ -63,10 +63,19 @@ async function create(user, data) {
   const prob = parseInt(probability, 10);
   if (!title || !description) throw Object.assign(new Error('Titre et description requis'), { status: 400 });
   if (!(imp >= 1 && imp <= 4) || !(prob >= 1 && prob <= 4)) throw Object.assign(new Error('Importance et probabilité entre 1 et 4'), { status: 400 });
+  // Champs facultatifs
+  const mitigation = data.mitigation && String(data.mitigation).trim() ? String(data.mitigation).trim() : null;
+  const affected_data = data.affected_data && String(data.affected_data).trim() ? String(data.affected_data).trim() : null;
+  const source_ref = data.source_ref && String(data.source_ref).trim() ? String(data.source_ref).trim() : null;
+  const related_experiment_id = parseInt(data.related_experiment_id, 10) || null;
+
   const row = await db.get(
-    `INSERT INTO ${SCHEMA}.risks (title, description, concerns_ivry, importance, probability, proposed_by)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-    [title, description, concerns_ivry !== false, imp, prob, user.id]
+    `INSERT INTO ${SCHEMA}.risks
+       (title, description, concerns_ivry, importance, probability, proposed_by,
+        mitigation, affected_data, related_experiment_id, source_ref)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+    [title, description, concerns_ivry !== false, imp, prob, user.id,
+      mitigation, affected_data, related_experiment_id, source_ref]
   );
   await logAction(user.id, 'risk_create', 'risk', row.id, null);
   await themes.setEntityThemes('risk', row.id, data.theme_ids);
