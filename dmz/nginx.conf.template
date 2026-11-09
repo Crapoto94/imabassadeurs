@@ -2,6 +2,9 @@
 # ${BACKEND_URL} est substitué au démarrage du conteneur (ex. http://10.103.130.106:5310).
 server_tokens off;
 
+# Type MIME du manifeste PWA (absent de mime.types par défaut).
+types { application/manifest+json webmanifest; }
+
 server {
   listen 80;
   server_name _;
