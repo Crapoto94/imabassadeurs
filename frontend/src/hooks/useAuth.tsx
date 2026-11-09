@@ -1,5 +1,5 @@
-import { createContext, useContext, useMemo, useState, ReactNode } from 'react';
-import { login as loginApi } from '../api/endpoints';
+import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { getMe, login as loginApi } from '../api/endpoints';
 import type { Role, User } from '../types';
 
 interface AuthContextValue {
@@ -28,6 +28,16 @@ function readUser(): User | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(readUser);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
+
+  // Rafraîchit le profil (nom, service, photo…) à chaque ouverture : la session peut dater
+  // d'avant une mise à jour de l'application ou de l'AD.
+  useEffect(() => {
+    if (!token) return;
+    getMe().then((u) => {
+      localStorage.setItem('user', JSON.stringify(u));
+      setUser(u);
+    }).catch(() => {});
+  }, [token]);
 
   const value = useMemo<AuthContextValue>(() => {
     const hasRole = (...roles: Role[]) => !!user && user.roles.some((r) => roles.includes(r));

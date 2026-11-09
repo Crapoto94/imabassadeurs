@@ -32,7 +32,7 @@ const avatarCache = new Map<string, Promise<string | null>>();
 function loadAvatar(userId: number, v: number): Promise<string | null> {
   const key = `${userId}:${v}`;
   if (!avatarCache.has(key)) {
-    avatarCache.set(key, api.get(`/api/v1/account/avatar/${userId}`, { responseType: 'blob' })
+    avatarCache.set(key, api.get(`/api/v1/account/avatar/${userId}`, { params: { v }, responseType: 'blob' })
       .then((r) => URL.createObjectURL(r.data)).catch(() => null));
   }
   return avatarCache.get(key)!;

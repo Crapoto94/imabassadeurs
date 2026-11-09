@@ -2,6 +2,7 @@ import { api, API_URL } from './client';
 import type { AiResult, Ambassador, Comment, Experiment, GamificationSummary, GraphData, Principle, Resource, Risk, Theme, User, VoteSession } from '../types';
 
 // ── Auth ──
+export const getMe = () => api.get<{ user: User }>('/api/v1/auth/me').then((r) => r.data.user);
 export const login = (username: string, password: string) =>
   api.post<{ token: string; user: User }>('/api/v1/auth/login', { username, password }).then((r) => r.data);
 
