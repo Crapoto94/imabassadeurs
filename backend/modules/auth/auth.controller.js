@@ -4,15 +4,49 @@ const apm = require('../../services/apm');
 const { signToken, loadUser } = require('../../middleware/auth');
 const { logAction } = require('../../utils/audit');
 
-// Normalise la fiche agent renvoyée par l'APM (/api/v1/ad/user) — noms de champs variables.
+const texte = (v) => (Array.isArray(v) ? v[0] : v) || null;
+
+// « DUPONT-MARTIN » / « marc » -> « Dupont-Martin » / « Marc » ; une casse mixte est conservée.
+function soigner(v) {
+  const t = String(v || '').trim();
+  if (!t || (t !== t.toUpperCase() && t !== t.toLowerCase())) return t;
+  return t.toLowerCase().replace(/(^|[\s'’-])(\p{L})/gu, (m, sep, c) => sep + c.toUpperCase());
+}
+
+// Libellé tout en capitales de plusieurs mots -> « Direction des systemes d'information » ;
+// un sigle seul (« DSI ») est conservé tel quel.
+function phrase(v) {
+  const t = String(v || '').trim();
+  if (!t || !/\s/.test(t) || t !== t.toUpperCase()) return t || null;
+  return t.charAt(0) + t.slice(1).toLowerCase();
+}
+
+// Premier OU « métier » du DN : OU=DSI,OU=Utilisateurs W10,OU=IVRY,… -> « DSI ».
+function serviceDepuisDn(dn) {
+  const ou = String(dn || '').match(/OU=([^,]+)/gi)?.map((s) => s.slice(3)) || [];
+  return ou.find((o) => !/^(utilisateurs|ivry|users)/i.test(o)) || null;
+}
+
+// Normalise la fiche renvoyée par l'APM (/api/v1/ad/user). L'APM renvoie une LISTE de comptes
+// proches (recherche par sous-chaîne) : on ne garde que celui dont le sAMAccountName correspond exactement.
 function normaliserAgent(agent, username) {
-  if (!agent) return {};
-  const a = agent.user || agent;
+  const liste = Array.isArray(agent) ? agent : agent ? [agent.user || agent] : [];
+  const login = String(username).toLowerCase();
+  const a = liste.find((x) => String(texte(x?.sAMAccountName) || '').toLowerCase() === login)
+    || (liste.length === 1 ? liste[0] : null);
+  if (!a) return {};
+  const prenom = soigner(texte(a.givenName));
+  const nom = soigner(texte(a.sn));
+  const direction = phrase(texte(a.company) || texte(a.description) || texte(a.department));
+  const service = phrase(texte(a.department)) || serviceDepuisDn(texte(a.distinguishedName) || texte(a.dn));
   return {
-    display_name: a.displayName || a.display_name || a.cn || a.name || a.fullName || username,
-    email: a.mail || a.email || a.userPrincipalName || null,
-    direction: a.direction || a.department || a.service_direction || null,
-    service: a.service || a.description || a.division || null,
+    // Prénom Nom (plutôt que le cn de l'AD, au format « NOM Prénom » ou technique).
+    display_name: [prenom, nom].filter(Boolean).join(' ') || texte(a.displayName) || texte(a.cn) || username,
+    email: texte(a.mail) || texte(a.userPrincipalName),
+    // AD Ivry : company = direction, department = service, title = fonction.
+    direction,
+    service: service && service !== direction ? service : null,
+    job_title: phrase(texte(a.title)),
   };
 }
 
@@ -28,16 +62,17 @@ async function upsertUser(adUsername, info) {
               email = COALESCE($3, email),
               direction = COALESCE($4, direction),
               service = COALESCE($5, service),
+              job_title = COALESCE($6, job_title),
               last_login_at = now()
         WHERE id = $1`,
-      [existing.id, info.display_name, info.email, info.direction, info.service]
+      [existing.id, info.display_name, info.email, info.direction, info.service, info.job_title]
     );
     return existing.id;
   }
   const created = await db.get(
-    `INSERT INTO ${SCHEMA}.users (ad_username, display_name, email, direction, service, last_login_at)
-     VALUES ($1, $2, $3, $4, $5, now()) RETURNING id`,
-    [adUsername, info.display_name || adUsername, info.email, info.direction, info.service]
+    `INSERT INTO ${SCHEMA}.users (ad_username, display_name, email, direction, service, job_title, last_login_at)
+     VALUES ($1, $2, $3, $4, $5, $6, now()) RETURNING id`,
+    [adUsername, info.display_name || adUsername, info.email, info.direction, info.service, info.job_title]
   );
   return created.id;
 }
@@ -102,4 +137,4 @@ async function me(req, res) {
   res.json({ user: req.user });
 }
 
-module.exports = { login, me, upsertUser };
+module.exports = { login, me, upsertUser, normaliserAgent };

@@ -24,7 +24,7 @@ export default function Ambassadors() {
     const needle = q.trim().toLowerCase();
     return (list || []).filter((a) =>
       (!role || a.roles.includes(role as any)) &&
-      (!needle || [a.display_name, a.direction, a.service, a.bio].some((v) => (v || '').toLowerCase().includes(needle)))
+      (!needle || [a.display_name, a.job_title, a.direction, a.service, a.bio].some((v) => (v || '').toLowerCase().includes(needle)))
     );
   }, [list, q, role]);
 
@@ -65,9 +65,10 @@ export default function Ambassadors() {
             <Avatar name={a.display_name} size={64} userId={a.id} v={a.avatar_v} />
             <div className="min-w-0 flex-1 space-y-1.5">
               <h2 className="font-headline text-headline-sm text-on-surface break-words">{a.display_name}</h2>
+              {a.job_title && <p className="font-headline text-label-md text-primary break-words">{a.job_title}</p>}
               {(a.direction || a.service) && (
                 <p className="font-body text-body-sm text-on-surface-variant break-words">
-                  {[a.direction, a.service].filter(Boolean).join(' · ')}
+                  {[a.service, a.direction].filter(Boolean).join(' · ')}
                 </p>
               )}
               <div className="flex flex-wrap gap-1">{a.roles.map((r) => <RoleBadge key={r} role={r} />)}</div>

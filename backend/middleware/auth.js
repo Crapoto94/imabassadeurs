@@ -10,7 +10,7 @@ function signToken(userId) {
 
 async function loadUser(userId) {
   const user = await db.get(
-    `SELECT id, ad_username, display_name, email, direction, service, bio,
+    `SELECT id, ad_username, display_name, email, direction, service, job_title, bio,
             (extract(epoch FROM avatar_updated_at) * 1000)::bigint AS avatar_v
        FROM ${SCHEMA}.users WHERE id = $1`,
     [userId]

@@ -22,6 +22,7 @@ export interface User {
   service: string | null;
   avatar_v?: number | null;
   bio?: string | null;
+  job_title?: string | null;
   roles: Role[];
 }
 
@@ -30,6 +31,7 @@ export interface Ambassador {
   display_name: string;
   direction: string | null;
   service: string | null;
+  job_title: string | null;
   bio: string | null;
   avatar_v: number | null;
   roles: Role[];
