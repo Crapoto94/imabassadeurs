@@ -1,5 +1,5 @@
 import { api, API_URL } from './client';
-import type { AiResult, Comment, Experiment, GamificationSummary, GraphData, Principle, Resource, Risk, Theme, User, VoteSession } from '../types';
+import type { AiResult, Ambassador, Comment, Experiment, GamificationSummary, GraphData, Principle, Resource, Risk, Theme, User, VoteSession } from '../types';
 
 // ── Auth ──
 export const login = (username: string, password: string) =>
@@ -107,6 +107,8 @@ export const getDigestQuality = () => api.get<any[]>('/api/v1/analytics/digest-q
 // ── Compte ──
 export const setAvatar = (image: string) =>
   api.put<{ avatar_v: number }>('/api/v1/account/avatar', { image }).then((r) => r.data);
+export const saveBio = (bio: string) => api.put<{ bio: string | null }>('/api/v1/account/profile', { bio }).then((r) => r.data);
+export const getAmbassadors = () => api.get<Ambassador[]>('/api/v1/ambassadors').then((r) => r.data);
 export const removeAvatar = () => api.delete('/api/v1/account/avatar').then((r) => r.data);
 
 export const getAccount = () => api.get<{ user: User; preferences: Record<string, string> }>('/api/v1/account').then((r) => r.data);

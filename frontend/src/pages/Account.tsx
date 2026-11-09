@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { getAccount, removeAvatar, setAvatar, setPreference } from '../api/endpoints';
+import { getAccount, removeAvatar, saveBio, setAvatar, setPreference } from '../api/endpoints';
 import { useAuth } from '../hooks/useAuth';
 import { errMsg } from '../api/client';
 import { useGamification } from '../hooks/useGamification';
 import {
-  Avatar, RoleBadge, SectionCard, StitchAlert, StitchSelect, StitchSpinner, ProgressBar, useToast,
+  Avatar, RoleBadge, SectionCard, StitchAlert, StitchSelect, StitchTextarea, StitchSpinner, ProgressBar, useToast,
 } from '../components/stitch';
 
 const CATEGORIES: { key: string; label: string }[] = [
@@ -28,10 +28,11 @@ export default function Account() {
   const { updateUser } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [bio, setBio] = useState('');
   const [data, setData] = useState<{ user: any; preferences: Record<string, string> } | null>(null);
   const [error, setError] = useState('');
 
-  async function load() { try { setData(await getAccount()); } catch (e) { setError(errMsg(e)); } }
+  async function load() { try { const d = await getAccount(); setData(d); setBio(d.user.bio || ''); } catch (e) { setError(errMsg(e)); } }
   useEffect(() => { load(); }, []);
 
   // Recadre au carré et réduit à 256 px (JPEG) avant envoi : fichier léger, quel que soit l'original.
@@ -49,6 +50,15 @@ export default function Account() {
       show('Photo mise à jour');
     } catch (e) { show(errMsg(e, 'Impossible de lire cette image')); }
     finally { setBusy(false); if (fileRef.current) fileRef.current.value = ''; }
+  }
+  async function submitBio() {
+    setBusy(true);
+    try {
+      const r = await saveBio(bio);
+      updateUser({ bio: r.bio });
+      setData((d) => d && { ...d, user: { ...d.user, bio: r.bio } });
+      show('Petit mot enregistré');
+    } catch (e) { show(errMsg(e)); } finally { setBusy(false); }
   }
   async function dropAvatar() {
     setBusy(true);
@@ -93,6 +103,18 @@ export default function Account() {
           <div>
             <h2 className="font-headline text-headline-md text-on-surface">{data.user.display_name}</h2>
             <p className="font-body text-body-sm text-on-surface-variant">{data.user.email || data.user.ad_username}</p>
+          </div>
+          <div className="w-full text-left">
+            <label className="font-headline text-label-md text-on-surface-variant" htmlFor="bio">Mon petit mot</label>
+            <StitchTextarea id="bio" rows={2} maxLength={160} value={bio} onChange={(e) => setBio(e.target.value)}
+              placeholder="Ex. : Curieux d'IA, fan de données ouvertes…" />
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <span className="font-body text-body-sm text-outline">{bio.length}/160 · visible dans l'annuaire</span>
+              <button type="button" disabled={busy || bio === (data.user.bio || '')} onClick={submitBio}
+                className="rounded-full bg-primary-container px-3 py-1 font-headline text-label-md text-on-primary-container disabled:opacity-40">
+                Enregistrer
+              </button>
+            </div>
           </div>
           <div className="flex flex-wrap justify-center gap-1.5">
             {data.user.roles?.length

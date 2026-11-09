@@ -6,6 +6,10 @@
   color-scheme: light;
 }
 
+html, body {
+  overflow-x: clip; /* jamais de défilement horizontal de la page (mobile) */
+}
+
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;

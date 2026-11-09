@@ -21,6 +21,17 @@ export interface User {
   direction: string | null;
   service: string | null;
   avatar_v?: number | null;
+  bio?: string | null;
+  roles: Role[];
+}
+
+export interface Ambassador {
+  id: number;
+  display_name: string;
+  direction: string | null;
+  service: string | null;
+  bio: string | null;
+  avatar_v: number | null;
   roles: Role[];
 }
 

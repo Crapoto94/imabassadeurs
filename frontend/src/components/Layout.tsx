@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Avatar } from './stitch';
+import InstallPrompt, { IosHelp, useInstallAction } from './InstallPrompt';
 import { useGamification } from '../hooks/useGamification';
 
 const navCls = ({ isActive }: { isActive: boolean }) =>
@@ -26,6 +27,7 @@ export default function Layout() {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const install = useInstallAction();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setMenuOpen(false); setNavOpen(false); }, [location.pathname]);
@@ -41,6 +43,7 @@ export default function Layout() {
     { to: '/experimentations', label: 'Expérimentations', icon: 'science', show: true },
     { to: '/risques', label: 'Risques', icon: 'warning', show: true },
     { to: '/votes', label: 'Votes', icon: 'how_to_vote', show: true },
+    { to: '/iambassadeurs', label: 'Les IAmbassadeurs', icon: 'groups', show: true },
     { to: '/cartographie', label: 'Cartographie', icon: 'hub', show: true },
     { to: '/analyse', label: 'Analyse', icon: 'analytics', show: isIanimateur },
     { to: '/admin', label: 'Admin', icon: 'admin_panel_settings', show: isAdmin },
@@ -154,6 +157,15 @@ export default function Layout() {
                   {l.label}
                 </NavLink>
               ))}
+              {install.available && (
+                <button
+                  className="mt-2 flex items-center justify-center gap-2 px-4 py-3 border border-primary text-primary rounded-full font-headline text-label-lg"
+                  type="button"
+                  onClick={() => { setNavOpen(false); install.run(); }}
+                >
+                  <span className="material-symbols-outlined text-[18px]">install_mobile</span> Installer l'application
+                </button>
+              )}
               {canInteract && (
                 <button
                   className="mt-2 flex items-center justify-center gap-2 px-4 py-3 bg-secondary text-on-secondary rounded-full font-headline text-label-lg shadow-sm"
@@ -167,6 +179,8 @@ export default function Layout() {
           </>
         )}
       </header>
+      <InstallPrompt available={install.available} run={install.run} />
+      {install.help && <IosHelp onClose={install.closeHelp} />}
       <main className="pt-16 min-h-screen">
         <Outlet />
       </main>

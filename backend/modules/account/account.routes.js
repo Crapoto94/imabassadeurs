@@ -25,6 +25,13 @@ router.put('/preferences', requireAuth, asyncHandler(async (req, res) => {
   res.json(await notifications.getPreferences(req.user.id));
 }));
 
+router.put('/profile', requireAuth, asyncHandler(async (req, res) => {
+  const bio = String(req.body?.bio ?? '').trim();
+  if (bio.length > 160) return res.status(400).json({ error: 'Le petit mot ne doit pas dépasser 160 caractères' });
+  await db.run(`UPDATE ${SCHEMA}.users SET bio = $1 WHERE id = $2`, [bio || null, req.user.id]);
+  res.json({ bio: bio || null });
+}));
+
 // --- Avatar : image JPEG/PNG/WebP réduite côté client (≤ 200 Ko), servie derrière l'auth. ---
 const MAX_AVATAR_BYTES = 200 * 1024;
 const MIMES = { 'image/jpeg': [0xff, 0xd8, 0xff], 'image/png': [0x89, 0x50, 0x4e, 0x47], 'image/webp': [0x52, 0x49, 0x46, 0x46] };

@@ -16,6 +16,7 @@ import Mapping from './pages/Mapping';
 import Analytics from './pages/Analytics';
 import Admin from './pages/Admin';
 import Account from './pages/Account';
+import Ambassadors from './pages/Ambassadors';
 import RateDigest from './pages/RateDigest';
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/cartographie" element={<Mapping />} />
         <Route path="/analyse" element={<ProtectedRoute roles={['ianimateur']}><Analytics /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute roles={['admin']}><Admin /></ProtectedRoute>} />
+        <Route path="/iambassadeurs" element={<Ambassadors />} />
         <Route path="/compte" element={<Account />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
