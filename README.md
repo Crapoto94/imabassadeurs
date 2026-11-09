@@ -59,6 +59,18 @@ docker compose up -d --build
 - En production, exposer l’app derrière un reverse-proxy (Nginx/Traefik) en HTTPS
   (ex. `https://charte-ia.ivry.local`) et adapter `APP_URL`.
 
+## Frontend en DMZ (accès externe)
+
+Un second frontend, sans accès direct à la base ni à l'AD, est déployé en DMZ :
+
+- DNS : `iambassadeurs.ivry94.fr` -> redirigé vers la DMZ `172.17.1.3:5311`
+- Règle de FW : DMZ `172.17.1.3` -> backend `10.103.130.106:5310`
+- Sur l'hôte DMZ : `docker compose -f docker-compose.dmz.yml up -d --build`
+  (`BACKEND_URL` modifiable via variable d'environnement ou `.env`)
+- Nginx relaie `/api` et `/uploads` vers le backend ; `/api-docs` n'est pas exposé.
+- Côté backend (`backend/.env`) : ajouter `https://iambassadeurs.ivry94.fr` à `CORS_ORIGIN`
+  et régler `APP_URL` si les liens des e-mails doivent pointer vers ce domaine.
+
 ## Comptes et authentification
 
 - Connexion via **Active Directory** (`POST /api/v1/ad/authenticate` de l’APM).

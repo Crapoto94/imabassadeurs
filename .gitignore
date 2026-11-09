@@ -9,3 +9,4 @@ backend/uploads/*
 
 # Scripts de déploiement local : le .ini contient un mot de passe serveur
 pulldocker.ini
+pulldmz.ini

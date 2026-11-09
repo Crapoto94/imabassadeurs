@@ -1,0 +1,45 @@
+# Frontend DMZ : sert la SPA et relaie /api et /uploads vers le backend interne.
+# ${BACKEND_URL} est substitué au démarrage du conteneur (ex. http://10.103.130.106:5310).
+server_tokens off;
+
+server {
+  listen 80;
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
+
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "SAMEORIGIN" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+  # Seul le strict nécessaire est relayé vers le réseau interne.
+  location /api/ {
+    proxy_pass ${BACKEND_URL};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 310s;   # synthèses IA locales : jusqu'à 5 min
+    client_max_body_size 10m;  # upload PDF (limite applicative 5 Mo)
+  }
+
+  location /uploads/ {
+    proxy_pass ${BACKEND_URL};
+    proxy_set_header Host $host;
+  }
+
+  # Documentation Swagger non exposée depuis la DMZ.
+  location ~ ^/(api-docs|swagger\.json) { return 404; }
+
+  location /assets/ {
+    expires 30d;
+    add_header Cache-Control "public, immutable";
+    add_header X-Content-Type-Options "nosniff" always;
+  }
+
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}
