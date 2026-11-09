@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { Avatar } from './stitch';
 import { useGamification } from '../hooks/useGamification';
 
 const navCls = ({ isActive }: { isActive: boolean }) =>
@@ -107,7 +108,9 @@ export default function Layout() {
                 type="button"
                 onClick={() => setMenuOpen((v) => !v)}
               >
-                <span className="font-headline text-label-md text-on-primary">{initials}</span>
+                {user?.avatar_v
+                  ? <Avatar name={user.display_name} size={32} userId={user.id} v={user.avatar_v} />
+                  : <span className="font-headline text-label-md text-on-primary">{initials}</span>}
               </button>
               {menuOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-surface-container-lowest rounded-xl shadow-modal border border-surface-container py-2">

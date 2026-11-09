@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { getAccount, setPreference } from '../api/endpoints';
+import { useEffect, useRef, useState } from 'react';
+import { getAccount, removeAvatar, setAvatar, setPreference } from '../api/endpoints';
+import { useAuth } from '../hooks/useAuth';
 import { errMsg } from '../api/client';
 import { useGamification } from '../hooks/useGamification';
 import {
@@ -24,11 +25,40 @@ const FREQUENCIES = [
 export default function Account() {
   const { show, Toast } = useToast();
   const { summary } = useGamification();
+  const { updateUser } = useAuth();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
   const [data, setData] = useState<{ user: any; preferences: Record<string, string> } | null>(null);
   const [error, setError] = useState('');
 
   async function load() { try { setData(await getAccount()); } catch (e) { setError(errMsg(e)); } }
   useEffect(() => { load(); }, []);
+
+  // Recadre au carré et réduit à 256 px (JPEG) avant envoi : fichier léger, quel que soit l'original.
+  async function pickAvatar(file: File) {
+    setBusy(true);
+    try {
+      const bmp = await createImageBitmap(file);
+      const side = Math.min(bmp.width, bmp.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 256;
+      canvas.getContext('2d')!.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 256, 256);
+      const { avatar_v } = await setAvatar(canvas.toDataURL('image/jpeg', 0.85));
+      updateUser({ avatar_v });
+      setData((d) => d && { ...d, user: { ...d.user, avatar_v } });
+      show('Photo mise à jour');
+    } catch (e) { show(errMsg(e, 'Impossible de lire cette image')); }
+    finally { setBusy(false); if (fileRef.current) fileRef.current.value = ''; }
+  }
+  async function dropAvatar() {
+    setBusy(true);
+    try {
+      await removeAvatar();
+      updateUser({ avatar_v: null });
+      setData((d) => d && { ...d, user: { ...d.user, avatar_v: null } });
+      show('Photo supprimée');
+    } catch (e) { show(errMsg(e)); } finally { setBusy(false); }
+  }
 
   if (error) return <div className="max-w-7xl mx-auto px-4 py-8"><StitchAlert kind="error">{error}</StitchAlert></div>;
   if (!data) return <div className="flex justify-center py-12"><StitchSpinner /></div>;
@@ -44,7 +74,22 @@ export default function Account() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Profil */}
         <SectionCard className="lg:col-span-4 p-6 flex flex-col items-center text-center gap-4">
-          <Avatar name={data.user.display_name} size={80} />
+          <Avatar name={data.user.display_name} size={96} userId={data.user.id} v={data.user.avatar_v} />
+          <div className="flex flex-wrap justify-center gap-2">
+            <input ref={fileRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => e.target.files?.[0] && pickAvatar(e.target.files[0])} />
+            <button type="button" disabled={busy} onClick={() => fileRef.current?.click()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-container text-on-primary-container font-headline text-label-md disabled:opacity-50">
+              <span className="material-symbols-outlined text-[16px]">photo_camera</span>
+              {data.user.avatar_v ? 'Changer la photo' : 'Ajouter une photo'}
+            </button>
+            {data.user.avatar_v && (
+              <button type="button" disabled={busy} onClick={dropAvatar}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-on-surface-variant hover:bg-surface-container font-headline text-label-md disabled:opacity-50">
+                <span className="material-symbols-outlined text-[16px]">delete</span> Retirer
+              </button>
+            )}
+          </div>
           <div>
             <h2 className="font-headline text-headline-md text-on-surface">{data.user.display_name}</h2>
             <p className="font-body text-body-sm text-on-surface-variant">{data.user.email || data.user.ad_username}</p>

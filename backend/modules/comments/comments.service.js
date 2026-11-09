@@ -22,6 +22,7 @@ async function list(entityType, entityId, currentUserId) {
   const comments = await db.all(
     `SELECT c.id, c.entity_type, c.entity_id, c.parent_id, c.body, c.created_at, c.edited_at, c.source_ref,
             c.author_id, u.display_name AS author_name,
+            (extract(epoch FROM u.avatar_updated_at) * 1000)::bigint AS author_avatar_v,
             (SELECT count(*)::int FROM ${SCHEMA}.comment_likes l WHERE l.comment_id = c.id) AS likes,
             EXISTS(SELECT 1 FROM ${SCHEMA}.comment_likes l WHERE l.comment_id = c.id AND l.user_id = $3) AS liked
        FROM ${SCHEMA}.comments c

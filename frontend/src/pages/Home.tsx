@@ -431,7 +431,7 @@ export default function Home() {
         <aside className="lg:col-span-3 space-y-4">
           <SectionCard className="p-5 space-y-4">
             <div className="flex items-start gap-3.5">
-              <Avatar name={user?.display_name} size={56} />
+              <Avatar name={user?.display_name} size={56} userId={user?.id} v={user?.avatar_v} />
               <div className="min-w-0 flex-1">
                 <h2 className="font-headline text-headline-sm text-on-surface truncate">{user?.display_name}</h2>
                 <p className="font-body text-body-sm text-on-surface-variant truncate">{user?.direction || user?.service || user?.email}</p>

@@ -105,6 +105,10 @@ export const getKpis = () => api.get<any>('/api/v1/analytics/kpis').then((r) => 
 export const getDigestQuality = () => api.get<any[]>('/api/v1/analytics/digest-quality').then((r) => r.data);
 
 // ── Compte ──
+export const setAvatar = (image: string) =>
+  api.put<{ avatar_v: number }>('/api/v1/account/avatar', { image }).then((r) => r.data);
+export const removeAvatar = () => api.delete('/api/v1/account/avatar').then((r) => r.data);
+
 export const getAccount = () => api.get<{ user: User; preferences: Record<string, string> }>('/api/v1/account').then((r) => r.data);
 export const setPreference = (category: string, frequency: string) =>
   api.put('/api/v1/account/preferences', { category, frequency }).then((r) => r.data);

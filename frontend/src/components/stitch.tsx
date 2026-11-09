@@ -1,5 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import type { Role } from '../types';
+import { api } from '../api/client';
 
 // ── Atomes partagés du thème « Ivry IA Citoyenne » (maquettes Stitch) ──
 
@@ -26,15 +27,38 @@ export function EditedAt({ editedAt }: { editedAt?: string | null }) {
   );
 }
 
-export function Avatar({ name, size = 40, className = '' }: { name?: string | null; size?: number; className?: string }) {
+// Cache des photos (blob URL) : l'image est servie derrière l'authentification, donc chargée via axios.
+const avatarCache = new Map<string, Promise<string | null>>();
+function loadAvatar(userId: number, v: number): Promise<string | null> {
+  const key = `${userId}:${v}`;
+  if (!avatarCache.has(key)) {
+    avatarCache.set(key, api.get(`/api/v1/account/avatar/${userId}`, { responseType: 'blob' })
+      .then((r) => URL.createObjectURL(r.data)).catch(() => null));
+  }
+  return avatarCache.get(key)!;
+}
+
+// Photo si userId + v (version) fournis, sinon initiales.
+export function Avatar({ name, size = 40, className = '', userId, v }: {
+  name?: string | null; size?: number; className?: string; userId?: number | null; v?: number | null;
+}) {
   const initials = (name || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setSrc(null);
+    if (userId && v) loadAvatar(userId, v).then((u) => { if (alive) setSrc(u); });
+    return () => { alive = false; };
+  }, [userId, v]);
   return (
     <div
-      className={`rounded-full bg-primary flex items-center justify-center shrink-0 ${className}`}
+      className={`rounded-full bg-primary flex items-center justify-center shrink-0 overflow-hidden ${className}`}
       style={{ width: size, height: size }}
       aria-hidden
     >
-      <span className="font-headline text-on-primary" style={{ fontSize: size * 0.36 }}>{initials}</span>
+      {src
+        ? <img src={src} alt="" className="h-full w-full object-cover" />
+        : <span className="font-headline text-on-primary" style={{ fontSize: size * 0.36 }}>{initials}</span>}
     </div>
   );
 }

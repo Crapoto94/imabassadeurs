@@ -164,7 +164,7 @@ export default function ResourceCard({ res, onChanged }: { res: Resource; onChan
           )}
 
           {isVideo && res.url && (
-            <div className="w-[70%]">
+            <div className="w-full sm:w-[70%]">
               <VideoEmbed url={res.url} />
             </div>
           )}

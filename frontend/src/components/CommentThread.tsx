@@ -40,7 +40,7 @@ function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment
   return (
     <div className="space-y-2">
       <div className="flex items-start gap-2.5">
-        <Avatar name={comment.author_name} size={isReply ? 28 : 32} />
+        <Avatar name={comment.author_name} size={isReply ? 28 : 32} userId={comment.author_id} v={comment.author_avatar_v} />
         <div className={`p-3 rounded-xl flex-1 space-y-1 ${isReply ? 'bg-surface-container-lowest' : 'bg-surface-container-lowest'}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
@@ -157,7 +157,7 @@ export default function CommentThread({ entityType, entityId }: { entityType: st
         : <div className="space-y-3 bg-surface-container-low/50 p-3 rounded-xl">{comments.map((c) => <CommentItem key={c.id} comment={c} onChanged={load} />)}</div>}
       {canInteract ? (
         <div className="flex items-center gap-2">
-          <Avatar name={user?.display_name} size={28} />
+          <Avatar name={user?.display_name} size={28} userId={user?.id} v={user?.avatar_v} />
           <div className="relative flex-1 space-y-1.5">
             <div className="relative">
               <input

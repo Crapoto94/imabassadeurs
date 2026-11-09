@@ -20,6 +20,7 @@ export interface User {
   email: string | null;
   direction: string | null;
   service: string | null;
+  avatar_v?: number | null;
   roles: Role[];
 }
 
@@ -141,6 +142,7 @@ export interface Comment {
   body: string;
   author_id: number;
   author_name: string;
+  author_avatar_v?: number | null;
   likes: number;
   liked: boolean;
   source_ref?: string | null;

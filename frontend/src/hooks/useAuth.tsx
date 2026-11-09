@@ -7,6 +7,7 @@ interface AuthContextValue {
   token: string | null;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (patch: Partial<User>) => void;
   hasRole: (...roles: Role[]) => boolean;
   canInteract: boolean;
   isAdmin: boolean;
@@ -41,6 +42,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('user', JSON.stringify(data.user));
         setToken(data.token);
         setUser(data.user);
+      },
+      updateUser(patch: Partial<User>) {
+        const next = { ...(user as User), ...patch };
+        localStorage.setItem('user', JSON.stringify(next));
+        setUser(next);
       },
       logout() {
         localStorage.removeItem('token');
