@@ -10,6 +10,13 @@ const navCls = ({ isActive }: { isActive: boolean }) =>
       : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
   }`;
 
+const mobileNavCls = ({ isActive }: { isActive: boolean }) =>
+  `flex items-center gap-3 px-4 py-3 rounded-xl font-headline text-label-lg transition-colors ${
+    isActive
+      ? 'bg-primary-container text-on-primary-container font-bold'
+      : 'text-on-surface-variant hover:bg-surface-container'
+  }`;
+
 // En-tête fixe type maquette Stitch : logo, nav horizontale, actions, avatar.
 export default function Layout() {
   const { user, logout, isAdmin, isIanimateur, canInteract } = useAuth();
@@ -17,9 +24,26 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
+  useEffect(() => { setMenuOpen(false); setNavOpen(false); }, [location.pathname]);
+  // Bloque le défilement de la page derrière le menu mobile ouvert.
+  useEffect(() => {
+    document.body.style.overflow = navOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [navOpen]);
+
+  const links = [
+    { to: '/', label: 'Accueil', icon: 'home', end: true, show: true },
+    { to: '/ressources', label: 'Base documentaire', icon: 'library_books', show: true },
+    { to: '/experimentations', label: 'Expérimentations', icon: 'science', show: true },
+    { to: '/risques', label: 'Risques', icon: 'warning', show: true },
+    { to: '/votes', label: 'Votes', icon: 'how_to_vote', show: true },
+    { to: '/cartographie', label: 'Cartographie', icon: 'hub', show: true },
+    { to: '/analyse', label: 'Analyse', icon: 'analytics', show: isIanimateur },
+    { to: '/admin', label: 'Admin', icon: 'admin_panel_settings', show: isAdmin },
+  ].filter((l) => l.show);
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
@@ -35,7 +59,17 @@ export default function Layout() {
     <div className="min-h-screen bg-surface font-body text-on-surface">
       <header className="no-print fixed top-0 inset-x-0 z-50 bg-surface-container-lowest/95 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
         <div className="h-16 w-full px-4 lg:px-6 flex items-center justify-between gap-3">
-          <NavLink to="/" className="flex items-center gap-3 shrink-0">
+          <button
+            aria-controls="mobile-nav"
+            aria-expanded={navOpen}
+            aria-label={navOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+            className="xl:hidden -ml-2 w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container"
+            type="button"
+            onClick={() => setNavOpen((v) => !v)}
+          >
+            <span className="material-symbols-outlined">{navOpen ? 'close' : 'menu'}</span>
+          </button>
+          <NavLink to="/" className="flex items-center gap-3 shrink-0 mr-auto xl:mr-0">
             <img alt="Logo IAmbassadeurs Ivry" className="h-8 w-auto object-contain" src="/logo.svg" />
             <div className="hidden sm:flex flex-col">
               <span className="font-headline text-headline-sm text-primary leading-tight tracking-tight">IAmbassadeurs</span>
@@ -44,14 +78,7 @@ export default function Layout() {
           </NavLink>
 
           <nav className="hidden xl:flex items-center gap-0.5 shrink-0" aria-label="Navigation principale">
-            <NavLink to="/" end className={navCls}>Accueil</NavLink>
-            <NavLink to="/ressources" className={navCls}>Base documentaire</NavLink>
-            <NavLink to="/experimentations" className={navCls}>Expérimentations</NavLink>
-            <NavLink to="/risques" className={navCls}>Risques</NavLink>
-            <NavLink to="/votes" className={navCls}>Votes</NavLink>
-            <NavLink to="/cartographie" className={navCls}>Cartographie</NavLink>
-            {isIanimateur && <NavLink to="/analyse" className={navCls}>Analyse</NavLink>}
-            {isAdmin && <NavLink to="/admin" className={navCls}>Admin</NavLink>}
+            {links.map((l) => <NavLink key={l.to} to={l.to} end={l.end} className={navCls}>{l.label}</NavLink>)}
           </nav>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -65,7 +92,7 @@ export default function Layout() {
             )}
             {canInteract && (
               <button
-                className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 bg-secondary hover:bg-secondary-container text-on-secondary rounded-full font-headline text-label-md shadow-sm transition-all"
+                className="hidden xl:flex items-center gap-1.5 px-3.5 py-1.5 bg-secondary hover:bg-secondary-container text-on-secondary rounded-full font-headline text-label-md shadow-sm transition-all"
                 type="button"
                 onClick={() => navigate('/', { state: { openComposer: true } })}
               >
@@ -109,21 +136,35 @@ export default function Layout() {
             </div>
           </div>
         </div>
-        {/* Navigation mobile : défilement horizontal centré sous l'en-tête */}
-        <nav className="xl:hidden overflow-x-auto" aria-label="Navigation mobile">
-          <div className="mx-auto flex w-max items-center gap-1 px-3 pb-2">
-            <NavLink to="/" end className={navCls}>Accueil</NavLink>
-            <NavLink to="/ressources" className={navCls}>Base documentaire</NavLink>
-            <NavLink to="/experimentations" className={navCls}>Expérimentations</NavLink>
-            <NavLink to="/risques" className={navCls}>Risques</NavLink>
-            <NavLink to="/votes" className={navCls}>Votes</NavLink>
-            <NavLink to="/cartographie" className={navCls}>Cartographie</NavLink>
-            {isIanimateur && <NavLink to="/analyse" className={navCls}>Analyse</NavLink>}
-            {isAdmin && <NavLink to="/admin" className={navCls}>Admin</NavLink>}
-          </div>
-        </nav>
+        {/* Navigation mobile : panneau déroulant sous l'en-tête */}
+        {navOpen && (
+          <>
+            <div className="xl:hidden fixed inset-0 top-16 bg-black/30" onClick={() => setNavOpen(false)} aria-hidden="true" />
+            <nav
+              id="mobile-nav"
+              aria-label="Navigation mobile"
+              className="xl:hidden absolute inset-x-0 top-16 max-h-[calc(100vh-4rem)] overflow-y-auto bg-surface-container-lowest border-t border-surface-container shadow-modal p-3 flex flex-col gap-1"
+            >
+              {links.map((l) => (
+                <NavLink key={l.to} to={l.to} end={l.end} className={mobileNavCls}>
+                  <span className="material-symbols-outlined text-[20px]">{l.icon}</span>
+                  {l.label}
+                </NavLink>
+              ))}
+              {canInteract && (
+                <button
+                  className="mt-2 flex items-center justify-center gap-2 px-4 py-3 bg-secondary text-on-secondary rounded-full font-headline text-label-lg shadow-sm"
+                  type="button"
+                  onClick={() => { setNavOpen(false); navigate('/', { state: { openComposer: true } }); }}
+                >
+                  <span className="material-symbols-outlined text-[18px]">add_circle</span> Contribuer
+                </button>
+              )}
+            </nav>
+          </>
+        )}
       </header>
-      <main className="pt-[6.5rem] xl:pt-16 min-h-screen">
+      <main className="pt-16 min-h-screen">
         <Outlet />
       </main>
       <footer className="no-print w-full bg-surface-container-low mt-auto py-10 shadow-[0_-1px_6px_rgba(0,0,0,0.02)]">
