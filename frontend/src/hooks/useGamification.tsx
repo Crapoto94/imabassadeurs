@@ -6,7 +6,7 @@ import type { GamificationSummary } from '../types';
 // pour toute l'application authentifiée. `refresh()` est rappelé après une contribution.
 interface GamificationContextValue {
   summary: GamificationSummary | null;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<GamificationSummary | null>;
 }
 
 const GamificationContext = createContext<GamificationContextValue>(null as any);
@@ -16,9 +16,12 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      setSummary(await getGamificationMe());
+      const s = await getGamificationMe();
+      setSummary(s);
+      return s;
     } catch {
       // silencieux : la gamification ne doit jamais bloquer l'usage du site
+      return null;
     }
   }, []);
 

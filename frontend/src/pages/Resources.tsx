@@ -5,6 +5,7 @@ import ResourceCard from '../components/ResourceCard';
 import { createResource, getExperiments, getResources, getRisks, getThemes } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { useGamification } from '../hooks/useGamification';
 import {
   LEVELS, LEVEL_META, Modal, PrimaryButton, SectionCard, StitchAlert, StitchEmpty,
   StitchField, StitchInput, StitchSelect, StitchSpinner, StitchTextarea, useToast,
@@ -14,6 +15,7 @@ import type { Resource, Theme } from '../types';
 
 function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean; onClose: () => void; onDone: () => void; themes: Theme[] }) {
   const { show, Toast } = useToast();
+  const { summary, refresh } = useGamification();
   const [kind, setKind] = useState<'pdf' | 'link'>('link');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -61,8 +63,10 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
         form.append('related_id', rid);
       }
       await createResource(form);
+      const after = await refresh();
+      const delta = (after?.points ?? 0) - (summary?.points ?? 0);
       onClose();
-      show('Votre ressource a été publiée !');
+      show(delta > 0 ? `Votre ressource a été publiée · +${delta} pts` : 'Votre ressource a été publiée !');
       onDone();
     } catch (err) { setError(errMsg(err)); } finally { setBusy(false); }
   }

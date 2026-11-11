@@ -6,6 +6,7 @@ import AiPanel from '../components/AiPanel';
 import { createExperiment, getExperiments, getRisks, getThemes, joinExperiment, synthExperiment } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { useGamification } from '../hooks/useGamification';
 import {
   Avatar, Modal, PrimaryButton, SectionCard, StitchAlert, StitchEmpty, StitchField, StitchInput,
   StitchSelect, StitchSpinner, StitchTextarea, useToast,
@@ -157,6 +158,7 @@ function ExperimentCard({ exp, onChanged }: { exp: Experiment; onChanged: () => 
 
 function CreateExperimentModal({ open, onClose, onDone, themes }: { open: boolean; onClose: () => void; onDone: () => void; themes: Theme[] }) {
   const { show, Toast } = useToast();
+  const { summary, refresh } = useGamification();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [objective, setObjective] = useState('');
@@ -195,8 +197,10 @@ function CreateExperimentModal({ open, onClose, onDone, themes }: { open: boolea
         feedback: feedback.trim() || null,
         related_risk_id: relatedRiskId ? Number(relatedRiskId) : null,
       });
+      const after = await refresh();
+      const delta = (after?.points ?? 0) - (summary?.points ?? 0);
       onClose();
-      show('Fiche projet transmise pour arbitrage par le Comité IAmbassadeurs');
+      show(delta > 0 ? `Fiche projet transmise · +${delta} pts` : 'Fiche projet transmise pour arbitrage par le Comité IAmbassadeurs');
       onDone();
     } catch (err) { setError(errMsg(err)); } finally { setBusy(false); }
   }

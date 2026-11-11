@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Avatar } from './stitch';
+import { Avatar, Modal } from './stitch';
+import ProgressionPanel from './ProgressionPanel';
 import InstallPrompt, { IosHelp, useInstallAction } from './InstallPrompt';
 import { useGamification } from '../hooks/useGamification';
 
@@ -27,8 +28,23 @@ export default function Layout() {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [progressOpen, setProgressOpen] = useState(false);
+  const [bumpKey, setBumpKey] = useState(0);
+  const [gain, setGain] = useState(0);
+  const prevPoints = useRef<number | null>(null);
   const install = useInstallAction();
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Animation de l'indicateur quand les points augmentent.
+  useEffect(() => {
+    const current = summary?.points ?? null;
+    if (current == null) return;
+    if (prevPoints.current != null && current > prevPoints.current) {
+      setGain(current - prevPoints.current);
+      setBumpKey((k) => k + 1);
+    }
+    prevPoints.current = current;
+  }, [summary?.points]);
 
   useEffect(() => { setMenuOpen(false); setNavOpen(false); }, [location.pathname]);
   // Bloque le défilement de la page derrière le menu mobile ouvert.
@@ -87,12 +103,40 @@ export default function Layout() {
 
           <div className="flex items-center gap-2 shrink-0">
             {summary?.enabled && (
-              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-tertiary-fixed/40 rounded-full">
-                <span className="material-symbols-outlined text-[14px] text-on-tertiary-fixed-variant">bolt</span>
-                <span className="font-headline text-label-sm text-on-tertiary-fixed-variant whitespace-nowrap">
-                  {summary.level_label} · {summary.points} pts
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                aria-label={`Niveau ${summary.level}, ${summary.points} points, ${summary.progress_pct} % vers le niveau ${summary.level + 1}`}
+                title={`Niveau ${summary.level} — ${summary.points} pts (${summary.progress_pct} % vers le niveau ${summary.level + 1})`}
+                onClick={() => setProgressOpen(true)}
+                className="relative flex items-center gap-1.5 px-2 py-1 md:px-2.5 md:py-1 bg-tertiary-fixed/40 hover:bg-tertiary-fixed/70 rounded-full transition-colors"
+              >
+                <span key={bumpKey} className="pts-pop flex items-center gap-1.5">
+                  <span className="relative inline-flex items-center justify-center">
+                    <svg width={28} height={28} viewBox="0 0 32 32" className="-rotate-90" aria-hidden="true">
+                      <circle cx="16" cy="16" r="13" fill="none" stroke="#dce9ff" strokeWidth="3" />
+                      <circle
+                        cx="16" cy="16" r="13" fill="none" stroke="#0051d5" strokeWidth="3" strokeLinecap="round"
+                        strokeDasharray={2 * Math.PI * 13}
+                        strokeDashoffset={2 * Math.PI * 13 * (1 - Math.min(100, Math.max(0, summary.progress_pct)) / 100)}
+                        className="transition-[stroke-dashoffset] duration-500"
+                      />
+                    </svg>
+                    <span className="material-symbols-outlined absolute text-[14px] text-on-tertiary-fixed-variant">bolt</span>
+                  </span>
+                  <span className="hidden md:inline font-headline text-label-sm text-on-tertiary-fixed-variant whitespace-nowrap">
+                    Niveau {summary.level} · {summary.points} pts
+                  </span>
                 </span>
-              </div>
+                {gain > 0 && (
+                  <span
+                    key={`g${bumpKey}`}
+                    className="pts-float pointer-events-none absolute -top-2 right-0 rounded-full bg-secondary px-2 py-0.5 font-headline text-label-sm text-on-secondary shadow"
+                  >
+                    +{gain} pts
+                  </span>
+                )}
+              </button>
             )}
             {canInteract && (
               <button
@@ -179,6 +223,9 @@ export default function Layout() {
           </>
         )}
       </header>
+      <Modal open={progressOpen} onClose={() => setProgressOpen(false)} title="Ma progression" icon="bolt">
+        {summary && <ProgressionPanel summary={summary} onNavigate={() => setProgressOpen(false)} />}
+      </Modal>
       <InstallPrompt available={install.available} run={install.run} />
       {install.help && <IosHelp onClose={install.closeHelp} />}
       <main className="pt-16 min-h-screen">

@@ -4,6 +4,7 @@ const apm = require('../../services/apm');
 const { pageParams } = require('../../utils/pagination');
 const { logAction } = require('../../utils/audit');
 const { reassignAll } = require('../../utils/userMerge');
+const gamification = require('../gamification/gamification.service');
 
 const ROLES = ['admin', 'iambassadeur', 'iaeclaireur', 'ianimateur'];
 
@@ -32,6 +33,7 @@ async function listUsers(query) {
   const where = search ? 'WHERE u.display_name ILIKE $1 OR u.ad_username ILIKE $1' : '';
   const rows = await db.all(
     `SELECT u.id, u.ad_username, u.display_name, u.email, u.direction, u.service, u.last_login_at,
+            u.gamification_hidden, u.gamification_points_adjustment,
             COALESCE(array_agg(ur.role) FILTER (WHERE ur.role IS NOT NULL), '{}') AS roles
        FROM ${SCHEMA}.users u
        LEFT JOIN ${SCHEMA}.user_roles ur ON ur.user_id = u.id
@@ -42,6 +44,48 @@ async function listUsers(query) {
     params
   );
   return rows;
+}
+
+// Détail gamification d'un utilisateur (pour la modale Admin), indépendant de la visibilité.
+async function getUserGamification(userId) {
+  const user = await db.get(
+    `SELECT id, gamification_hidden, gamification_points_adjustment FROM ${SCHEMA}.users WHERE id=$1`, [userId]);
+  if (!user) throw Object.assign(new Error('Utilisateur introuvable'), { status: 404 });
+  const computed = await gamification.computeFor(userId);
+  return {
+    user_id: userId,
+    hidden: user.gamification_hidden,
+    points_adjustment: user.gamification_points_adjustment,
+    ...computed,
+  };
+}
+
+async function updateUserGamification(admin, userId, data) {
+  const user = await db.get(`SELECT id FROM ${SCHEMA}.users WHERE id=$1`, [userId]);
+  if (!user) throw Object.assign(new Error('Utilisateur introuvable'), { status: 404 });
+
+  const set = [];
+  const params = [];
+  if (data.hidden !== undefined) {
+    if (typeof data.hidden !== 'boolean') throw Object.assign(new Error('Valeur « hidden » invalide'), { status: 400 });
+    params.push(data.hidden);
+    set.push(`gamification_hidden = $${params.length}`);
+  }
+  if (data.points_adjustment !== undefined) {
+    const adj = parseInt(data.points_adjustment, 10);
+    if (!Number.isInteger(adj) || adj < -1000000 || adj > 1000000) {
+      throw Object.assign(new Error('Ajustement de points invalide'), { status: 400 });
+    }
+    params.push(adj);
+    set.push(`gamification_points_adjustment = $${params.length}`);
+  }
+  if (!set.length) return getUserGamification(userId);
+
+  params.push(userId);
+  await db.run(
+    `UPDATE ${SCHEMA}.users SET ${set.join(', ')} WHERE id = $${params.length}`, params);
+  await logAction(admin.id, 'gamification_update', 'user', userId, data);
+  return getUserGamification(userId);
 }
 
 async function grantRole(admin, userId, role) {
@@ -160,5 +204,6 @@ const listAiModels = () => apm.listerModelesIA();
 
 module.exports = {
   ROLES, getSettings, updateSettings, listUsers, grantRole, revokeRole, removeUser,
+  getUserGamification, updateUserGamification,
   listAudit, listPrompts, updatePrompt, testPrompt, listAiModels,
 };

@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
-  createTheme, deleteTheme, deleteUser, getAiModels, getAudit, getPrompts, getSettings, getThemes, getUsers,
-  grantRole, revokeRole, testPrompt, updatePrompt, updateSettings, updateTheme,
+  createTheme, deleteTheme, deleteUser, getAiModels, getAudit, getPrompts, getSettings, getThemes, getUserGamification,
+  getUsers, grantRole, revokeRole, testPrompt, updatePrompt, updateSettings, updateTheme, updateUserGamification,
 } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import {
@@ -112,6 +112,11 @@ function UsersTab() {
   const [toDelete, setToDelete] = useState<any>(null);
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [gamifUser, setGamifUser] = useState<any>(null);
+  const [gamifData, setGamifData] = useState<any>(null);
+  const [gamifVisible, setGamifVisible] = useState(true);
+  const [gamifAdjustment, setGamifAdjustment] = useState('0');
+  const [gamifBusy, setGamifBusy] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -147,6 +152,29 @@ function UsersTab() {
       setToDelete(null);
       load();
     } catch (e) { setError(errMsg(e)); } finally { setDeleting(false); }
+  }
+
+  async function openGamification(u: any) {
+    setGamifUser(u);
+    setGamifData(null);
+    setGamifVisible(u.gamification_hidden !== true);
+    setGamifAdjustment(String(u.gamification_points_adjustment ?? 0));
+    try { setGamifData(await getUserGamification(u.id)); }
+    catch (e) { setError(errMsg(e)); }
+  }
+
+  async function saveGamification() {
+    if (!gamifUser) return;
+    setGamifBusy(true);
+    try {
+      const updated = await updateUserGamification(gamifUser.id, {
+        hidden: !gamifVisible,
+        points_adjustment: parseInt(gamifAdjustment, 10) || 0,
+      });
+      setGamifData(updated);
+      show('Gamification mise à jour');
+      load();
+    } catch (e) { setError(errMsg(e)); } finally { setGamifBusy(false); }
   }
 
   return (
@@ -226,19 +254,28 @@ function UsersTab() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      {u.roles?.includes('admin') ? (
-                        <span className="font-headline text-label-sm text-outline">—</span>
-                      ) : (
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-error hover:bg-error-container/40 rounded-full font-headline text-label-sm transition-colors"
-                          onClick={() => askDelete(u)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-tertiary hover:bg-tertiary-fixed/40 rounded-full font-headline text-label-sm transition-colors"
+                          onClick={() => openGamification(u)}
                           type="button"
-                          title={`Supprimer ${u.display_name}`}
+                          title="Gamification"
                         >
-                          <span className="material-symbols-outlined text-[16px]">delete</span>
-                          <span>Supprimer</span>
+                          <span className="material-symbols-outlined text-[16px]">bolt</span>
+                          <span>Gamification</span>
                         </button>
-                      )}
+                        {!u.roles?.includes('admin') && (
+                          <button
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-error hover:bg-error-container/40 rounded-full font-headline text-label-sm transition-colors"
+                            onClick={() => askDelete(u)}
+                            type="button"
+                            title={`Supprimer ${u.display_name}`}
+                          >
+                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                            <span>Supprimer</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -286,6 +323,69 @@ function UsersTab() {
               >
                 <span className="material-symbols-outlined text-[18px]">delete</span>
                 {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!gamifUser} onClose={() => setGamifUser(null)} title="Gamification" icon="bolt">
+        {gamifUser && (
+          <div className="space-y-4">
+            <p className="font-body text-body-md text-on-surface">
+              Réglages pour <strong>{gamifUser.display_name}</strong> ({gamifUser.ad_username}).
+            </p>
+            <div className="rounded-xl bg-surface-container-low p-4 space-y-2">
+              {gamifData ? (
+                <>
+                  <div className="flex justify-between font-headline text-label-md">
+                    <span className="text-on-surface-variant">Points calculés</span>
+                    <span className="text-on-surface">{gamifData.points - gamifData.points_adjustment}</span>
+                  </div>
+                  <div className="flex justify-between font-headline text-label-md">
+                    <span className="text-on-surface-variant">Ajustement</span>
+                    <span className="text-on-surface">{gamifData.points_adjustment}</span>
+                  </div>
+                  <div className="flex justify-between font-headline text-label-md">
+                    <span className="text-on-surface-variant">Total</span>
+                    <span className="text-primary font-bold">{gamifData.points} pts · {gamifData.level_label}</span>
+                  </div>
+                </>
+              ) : (
+                <span className="font-body text-body-sm text-outline">Chargement…</span>
+              )}
+            </div>
+            <label className="flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-secondary"
+                checked={gamifVisible}
+                onChange={(e) => setGamifVisible(e.target.checked)}
+              />
+              <span className="font-body text-body-sm text-on-surface">Afficher la gamification pour cet utilisateur</span>
+            </label>
+            <label className="block space-y-1.5">
+              <span className="block font-headline text-label-sm text-on-surface-variant uppercase tracking-wider">Ajustement de points</span>
+              <input
+                type="number"
+                className="w-full px-3.5 py-2.5 bg-surface-container-low rounded-lg font-body text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/20"
+                value={gamifAdjustment}
+                onChange={(e) => setGamifAdjustment(e.target.value)}
+              />
+              <span className="block font-body text-body-sm text-outline">
+                Valeur ajoutée (ou retirée) au total calculé. Utile pour les tests.
+              </span>
+            </label>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <GhostButton onClick={() => setGamifUser(null)}>Annuler</GhostButton>
+              <button
+                type="button"
+                onClick={saveGamification}
+                disabled={gamifBusy}
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-secondary hover:bg-secondary-container text-on-secondary font-headline text-label-md shadow-sm transition-all disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[18px]">save</span>
+                {gamifBusy ? 'Enregistrement…' : 'Enregistrer'}
               </button>
             </div>
           </div>

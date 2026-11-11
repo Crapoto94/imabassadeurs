@@ -10,6 +10,8 @@ router.get('/settings', asyncHandler(async (req, res) => res.json(await service.
 router.put('/settings', asyncHandler(async (req, res) => res.json(await service.updateSettings(req.user, req.body))));
 
 router.get('/users', asyncHandler(async (req, res) => res.json(await service.listUsers(req.query))));
+router.get('/users/:id/gamification', asyncHandler(async (req, res) => res.json(await service.getUserGamification(parseInt(req.params.id, 10)))));
+router.patch('/users/:id/gamification', asyncHandler(async (req, res) => res.json(await service.updateUserGamification(req.user, parseInt(req.params.id, 10), req.body))));
 router.post('/users/:id/roles', asyncHandler(async (req, res) => res.json(await service.grantRole(req.user, parseInt(req.params.id, 10), req.body.role))));
 router.delete('/users/:id/roles/:role', asyncHandler(async (req, res) => res.json(await service.revokeRole(req.user, parseInt(req.params.id, 10), req.params.role))));
 router.delete('/users/:id', asyncHandler(async (req, res) => res.json(await service.removeUser(req.user, parseInt(req.params.id, 10), req.body))));

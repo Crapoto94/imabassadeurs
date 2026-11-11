@@ -6,6 +6,7 @@ import AiPanel from '../components/AiPanel';
 import { createRisk, getExperiments, getRisks, getThemes, synthRisk } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { useGamification } from '../hooks/useGamification';
 import {
   Modal, PrimaryButton, SectionCard, StitchAlert, StitchEmpty, StitchField, StitchInput,
   StitchSelect, StitchSpinner, StitchTextarea, timeAgo, useToast,
@@ -128,6 +129,7 @@ function RiskCard({ risk }: { risk: Risk }) {
 
 function DeclareRiskModal({ open, onClose, onDone, themes }: { open: boolean; onClose: () => void; onDone: () => void; themes: Theme[] }) {
   const { show, Toast } = useToast();
+  const { summary, refresh } = useGamification();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [concerns, setConcerns] = useState(true);
@@ -160,8 +162,10 @@ function DeclareRiskModal({ open, onClose, onDone, themes }: { open: boolean; on
         related_experiment_id: relatedExperimentId ? Number(relatedExperimentId) : null,
         source_ref: sourceRef.trim() || null,
       } as any);
+      const after = await refresh();
+      const delta = (after?.points ?? 0) - (summary?.points ?? 0);
       onClose();
-      show('Risque soumis au collège des IAmbassadeurs');
+      show(delta > 0 ? `Risque soumis au collège · +${delta} pts` : 'Risque soumis au collège des IAmbassadeurs');
       onDone();
     } catch (err) { setError(errMsg(err)); } finally { setBusy(false); }
   }

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { addVoteOption, castVote, createVote, getVotes } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { useGamification } from '../hooks/useGamification';
 import {
   Avatar, Modal, PrimaryButton, ProgressBar, SectionCard, StitchAlert, StitchEmpty, StitchField,
   StitchInput, StitchSelect, StitchSpinner, StitchTextarea, useToast,
@@ -11,6 +12,7 @@ import type { VoteSession } from '../types';
 
 function VoteSessionCard({ session, onChanged }: { session: VoteSession; onChanged: () => void }) {
   const { canInteract } = useAuth();
+  const { summary, refresh } = useGamification();
   const { show, Toast } = useToast();
   const [writeIn, setWriteIn] = useState('');
   const [writeJustification, setWriteJustification] = useState('');
@@ -31,7 +33,9 @@ function VoteSessionCard({ session, onChanged }: { session: VoteSession; onChang
       await addVoteOption(session.id, writeIn.trim(), writeJustification.trim() || undefined);
       setWriteIn('');
       setWriteJustification('');
-      show('Proposition transmise pour examen et vote collectif !');
+      const after = await refresh();
+      const delta = (after?.points ?? 0) - (summary?.points ?? 0);
+      show(delta > 0 ? `Proposition transmise · +${delta} pts` : 'Proposition transmise pour examen et vote collectif !');
       onChanged();
     } finally { setBusy(false); }
   }
@@ -195,6 +199,7 @@ function VoteSessionCard({ session, onChanged }: { session: VoteSession; onChang
 
 function CreateVoteModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
   const { show, Toast } = useToast();
+  const { summary, refresh } = useGamification();
   const [question, setQuestion] = useState('');
   const [context, setContext] = useState('');
   const [mode, setMode] = useState<'closed' | 'open'>('closed');
@@ -215,8 +220,10 @@ function CreateVoteModal({ open, onClose, onDone }: { open: boolean; onClose: ()
         closes_at: closesAt || null,
         context: context.trim() || null,
       });
+      const after = await refresh();
+      const delta = (after?.points ?? 0) - (summary?.points ?? 0);
       onClose();
-      show('Nouvelle consultation publiée');
+      show(delta > 0 ? `Nouvelle consultation publiée · +${delta} pts` : 'Nouvelle consultation publiée');
       onDone();
     } catch (err) { setError(errMsg(err)); } finally { setBusy(false); }
   }

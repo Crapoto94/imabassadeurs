@@ -193,6 +193,8 @@ export interface GamificationBadge {
   label: string;
   icon: string;
   earned: boolean;
+  current: number;
+  target: number;
 }
 
 export interface GamificationBreakdownItem {
@@ -200,15 +202,44 @@ export interface GamificationBreakdownItem {
   points: number;
 }
 
+export interface GamificationAxis {
+  key: string;
+  label: string;
+  count: number;
+  points: number;
+  level: number;
+  level_label: string;
+}
+
+export interface GamificationImpactItem {
+  key: string;
+  label: string;
+  count: number;
+  points: number;
+}
+
+export interface GamificationNextStep {
+  key: string;
+  label: string;
+  icon: string;
+  href: string;
+}
+
 export interface GamificationSummary {
   enabled: boolean;
   points: number;
+  base_points: number;
+  impact_points: number;
+  points_adjustment: number;
   level: number;
   level_label: string;
   current_level_points: number;
   next_level_points: number | null;
   progress_pct: number;
+  axes: GamificationAxis[];
+  impact: GamificationImpactItem[];
   badges: GamificationBadge[];
+  next_steps: GamificationNextStep[];
   breakdown: Record<string, GamificationBreakdownItem>;
   parcours: { total: number; lu: number };
 }

@@ -44,6 +44,24 @@ body {
   outline-offset: 2px;
 }
 
+/* Feedback de gain de points (indicateur de niveau de l'en-tête) */
+@keyframes pts-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+@keyframes pts-float {
+  0% { opacity: 0; transform: translateY(4px) scale(0.9); }
+  20% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-16px) scale(1); }
+}
+.pts-pop { animation: pts-pop 520ms ease-out; }
+.pts-float { animation: pts-float 1200ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pts-pop, .pts-float { animation: none; }
+}
+
 @media print {
   .no-print {
     display: none !important;

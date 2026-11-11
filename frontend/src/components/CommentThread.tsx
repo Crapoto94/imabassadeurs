@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { addComment, deleteComment, getComments, likeComment, updateComment } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
-import { Avatar, EditedAt, StitchAlert, StitchEmpty, StitchSpinner, timeAgo } from './stitch';
+import { useGamification } from '../hooks/useGamification';
+import { Avatar, EditedAt, StitchAlert, StitchEmpty, StitchSpinner, timeAgo, useToast } from './stitch';
 import type { Comment } from '../types';
 
 function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment; onChanged: () => void; isReply?: boolean }) {
@@ -120,6 +121,8 @@ function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment
 
 export default function CommentThread({ entityType, entityId }: { entityType: string; entityId: number }) {
   const { canInteract, user } = useAuth();
+  const { summary, refresh } = useGamification();
+  const { show, Toast } = useToast();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
@@ -141,12 +144,20 @@ export default function CommentThread({ entityType, entityId }: { entityType: st
   async function submit() {
     if (!body.trim()) return;
     setBusy(true);
-    try { await addComment(entityType, entityId, body, undefined, sourceRef.trim() || undefined); setBody(''); setSourceRef(''); await load(); }
+    try {
+      await addComment(entityType, entityId, body, undefined, sourceRef.trim() || undefined);
+      setBody(''); setSourceRef('');
+      const after = await refresh();
+      const delta = (after?.points ?? 0) - (summary?.points ?? 0);
+      if (delta > 0) show(`+${delta} pts`);
+      await load();
+    }
     catch (e) { setError(errMsg(e)); } finally { setBusy(false); }
   }
 
   return (
     <div className="space-y-3">
+      {Toast}
       <h3 className="font-headline text-headline-sm text-primary flex items-center gap-2">
         <span className="material-symbols-outlined text-[18px]">forum</span>
         Échanges &amp; retours d'expérience
