@@ -288,7 +288,7 @@ function RiskCard({ risk }: { risk: Risk }) {
 // ── Page d'accueil : fil d'actualité 3 colonnes ──
 
 export default function Home() {
-  const { user, canInteract } = useAuth();
+  const { user, canInteract, isIanimateur } = useAuth();
   const { summary } = useGamification();
   const navigate = useNavigate();
   const location = useLocation();
@@ -474,8 +474,8 @@ export default function Home() {
               { to: '/experimentations', icon: 'science', label: 'Expérimentations', badge: experiments.length ? `${experiments.length}` : null, tint: 'bg-tertiary-fixed/60 text-tertiary' },
               { to: '/risques', icon: 'warning', label: 'Alertes Risques', badge: risks.length ? `${risks.length}` : null, tint: 'bg-error-container/60 text-error' },
               { to: '/votes', icon: 'how_to_vote', label: 'Consultations & Votes', badge: openVotes.length ? `${openVotes.length} ouverts` : null, tint: 'bg-secondary-fixed text-on-secondary-fixed-variant' },
-              { to: '/cartographie', icon: 'hub', label: 'Cartographie dynamique', badge: null, tint: 'bg-primary-fixed/50 text-primary' },
-            ].map(({ to, icon, label, badge, tint }) => (
+              { to: '/cartographie', icon: 'hub', label: 'Cartographie dynamique', badge: null, tint: 'bg-primary-fixed/50 text-primary', modOnly: true },
+            ].filter((l) => !l.modOnly || isIanimateur).map(({ to, icon, label, badge, tint }) => (
               <Link key={to} to={to} className="flex items-center justify-between p-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors">
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${tint}`}>
@@ -510,10 +510,12 @@ export default function Home() {
                   <span>{principles.length ? Math.round((adopted / principles.length) * 100) : 0}% d'avancement</span>
                 </div>
               </div>
-              <Link to="/cartographie" className="inline-flex items-center gap-1.5 font-headline text-label-md text-secondary-fixed hover:text-white pt-2 transition-colors">
-                <span>Explorer les principes en débat</span>
-                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-              </Link>
+              {isIanimateur && (
+                <Link to="/cartographie" className="inline-flex items-center gap-1.5 font-headline text-label-md text-secondary-fixed hover:text-white pt-2 transition-colors">
+                  <span>Explorer les principes en débat</span>
+                  <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                </Link>
+              )}
             </div>
           )}
         </aside>

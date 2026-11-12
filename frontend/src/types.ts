@@ -243,3 +243,55 @@ export interface GamificationSummary {
   breakdown: Record<string, GamificationBreakdownItem>;
   parcours: { total: number; lu: number };
 }
+
+// ── Backlog (bugs et idées) ──
+export type BacklogType = 'bug' | 'evolution';
+export type BacklogStatus = 'demandee' | 'acceptee' | 'refusee' | 'realisee';
+
+export interface BacklogItem {
+  id: number;
+  type: BacklogType;
+  title: string;
+  description: string;
+  app_version: string | null;
+  status: BacklogStatus;
+  reason: string | null;
+  created_at: string;
+  treated_at: string | null;
+  author_id: number | null;
+  author_name: string | null;
+  treated_by_name: string | null;
+}
+
+// ── Annonces (bandeau / modale d'ouverture) ──
+export type AnnouncementKind = 'bandeau' | 'modale';
+
+export interface Announcement {
+  id: number;
+  kind: AnnouncementKind;
+  title: string | null;
+  message: string;
+  ends_at: string;
+}
+
+export interface AnnouncementAdmin extends Announcement {
+  starts_at: string;
+  active: boolean;
+  etat: 'en_cours' | 'programme' | 'termine' | 'desactive';
+  created_by_name: string | null;
+  dismissed_count: number;
+}
+
+// ── Le Mur de l'IA ──
+export interface WallReaction { emoji: string; count: number; mine: boolean; names: string[] }
+export interface WallPost {
+  id: number;
+  body: string;
+  created_at: string;
+  edited_at: string | null;
+  author_id: number | null;
+  author_name: string | null;
+  author_avatar_v: number | null;
+  quote: { id: number; author_name: string | null; excerpt: string; deleted: boolean } | null;
+  reactions: WallReaction[];
+}

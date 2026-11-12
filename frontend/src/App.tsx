@@ -18,6 +18,7 @@ import Admin from './pages/Admin';
 import Account from './pages/Account';
 import Ambassadors from './pages/Ambassadors';
 import RateDigest from './pages/RateDigest';
+import Wall from './pages/Wall';
 
 export default function App() {
   return (
@@ -34,9 +35,10 @@ export default function App() {
         <Route path="/risques/:id" element={<RiskDetail />} />
         <Route path="/votes" element={<Votes />} />
         <Route path="/votes/:id" element={<VoteDetail />} />
-        <Route path="/cartographie" element={<Mapping />} />
+        <Route path="/cartographie" element={<ProtectedRoute roles={['ianimateur']}><Mapping /></ProtectedRoute>} />
         <Route path="/analyse" element={<ProtectedRoute roles={['ianimateur']}><Analytics /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute roles={['admin']}><Admin /></ProtectedRoute>} />
+        <Route path="/mur" element={<Wall />} />
         <Route path="/iambassadeurs" element={<Ambassadors />} />
         <Route path="/compte" element={<Account />} />
       </Route>

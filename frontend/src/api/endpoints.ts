@@ -1,5 +1,5 @@
 import { api, API_URL } from './client';
-import type { AiResult, Ambassador, Comment, Experiment, GamificationSummary, GraphData, Principle, Resource, Risk, Theme, User, VoteSession } from '../types';
+import type { AiResult, Ambassador, Announcement, AnnouncementAdmin, AnnouncementKind, BacklogItem, BacklogStatus, BacklogType, Comment, Experiment, GamificationSummary, GraphData, Principle, Resource, Risk, Theme, User, VoteSession, WallPost } from '../types';
 
 // ── Auth ──
 export const getMe = () => api.get<{ user: User }>('/api/v1/auth/me').then((r) => r.data.user);
@@ -156,5 +156,38 @@ export const deleteVoteOption = (optionId: number) => api.delete(`/api/v1/votes/
 export const updatePrinciple = (id: number, data: { title: string; body: string }) =>
   api.put(`/api/v1/mapping/principles/${id}`, data).then((r) => r.data);
 export const deletePrinciple = (id: number) => api.delete(`/api/v1/mapping/principles/${id}`).then((r) => r.data);
+
+// ── Backlog (bugs et idées) ──
+export const createBacklogItem = (data: { type: BacklogType; title: string; description: string; app_version?: string }) =>
+  api.post<BacklogItem>('/api/v1/backlog', data).then((r) => r.data);
+export const getMyBacklog = () => api.get<BacklogItem[]>('/api/v1/backlog/mine').then((r) => r.data);
+export const getBacklog = (status?: BacklogStatus) =>
+  api.get<BacklogItem[]>('/api/v1/backlog', { params: status ? { status } : undefined }).then((r) => r.data);
+export const setBacklogStatus = (id: number, status: BacklogStatus, reason?: string) =>
+  api.put<BacklogItem>(`/api/v1/backlog/${id}`, { status, reason }).then((r) => r.data);
+export const deleteBacklogItem = (id: number) => api.delete(`/api/v1/backlog/${id}`).then((r) => r.data);
+
+// ── Annonces (bandeau / modale d'ouverture) ──
+export interface AnnouncementInput {
+  kind: AnnouncementKind; title: string; message: string; starts_at: string; ends_at: string; active: boolean;
+}
+export const getActiveAnnouncements = () =>
+  api.get<{ items: Announcement[] }>('/api/v1/announcements/active').then((r) => r.data.items);
+export const dismissAnnouncement = (id: number) => api.post(`/api/v1/announcements/${id}/dismiss`).then((r) => r.data);
+export const getAnnouncements = () => api.get<AnnouncementAdmin[]>('/api/v1/announcements').then((r) => r.data);
+export const createAnnouncement = (data: AnnouncementInput) => api.post('/api/v1/announcements', data).then((r) => r.data);
+export const updateAnnouncement = (id: number, data: AnnouncementInput) =>
+  api.put(`/api/v1/announcements/${id}`, data).then((r) => r.data);
+export const deleteAnnouncement = (id: number) => api.delete(`/api/v1/announcements/${id}`).then((r) => r.data);
+
+// ── Le Mur de l'IA ──
+export const getWall = (before?: number) =>
+  api.get<{ items: WallPost[]; has_more: boolean; reactions: string[] }>('/api/v1/wall', { params: before ? { before } : undefined }).then((r) => r.data);
+export const createWallPost = (body: string, quoteId?: number | null) =>
+  api.post<WallPost>('/api/v1/wall', { body, quote_id: quoteId || undefined }).then((r) => r.data);
+export const updateWallPost = (id: number, body: string) => api.put<WallPost>(`/api/v1/wall/${id}`, { body }).then((r) => r.data);
+export const deleteWallPost = (id: number) => api.delete(`/api/v1/wall/${id}`).then((r) => r.data);
+export const reactWallPost = (id: number, emoji: string) =>
+  api.post<WallPost>(`/api/v1/wall/${id}/reactions`, { emoji }).then((r) => r.data);
 
 export { API_URL };

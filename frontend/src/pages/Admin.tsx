@@ -9,6 +9,8 @@ import {
   StitchSelect, StitchSpinner, StitchTextarea, useToast,
 } from '../components/stitch';
 import type { AiResult, Theme, ThemeScope } from '../types';
+import AdminAnnouncements from './AdminAnnouncements';
+import AdminBacklog from './AdminBacklog';
 
 const ROLES = [
   { key: 'admin', label: 'Admin' },
@@ -23,7 +25,7 @@ const SCOPE_LABELS: Record<string, string> = {
   risk: 'Risques',
 };
 
-type TabKey = 'users' | 'prompts' | 'themes' | 'settings' | 'audit';
+type TabKey = 'users' | 'prompts' | 'themes' | 'backlog' | 'announcements' | 'settings' | 'audit';
 
 export default function Admin() {
   const [tab, setTab] = useState<TabKey>('users');
@@ -31,6 +33,8 @@ export default function Admin() {
     { key: 'users', icon: 'group', label: 'Utilisateurs & Rôles' },
     { key: 'prompts', icon: 'psychology', label: 'Paramétrage Prompts IA' },
     { key: 'themes', icon: 'sell', label: 'Thèmes' },
+    { key: 'backlog', icon: 'lightbulb', label: 'Backlog' },
+    { key: 'announcements', icon: 'campaign', label: 'Annonces' },
     { key: 'settings', icon: 'tune', label: 'Paramètres Généraux & Footer' },
     { key: 'audit', icon: 'receipt_long', label: "Journal d'Audit" },
   ];
@@ -93,6 +97,8 @@ export default function Admin() {
         {tab === 'users' && <UsersTab />}
         {tab === 'prompts' && <PromptsTab />}
         {tab === 'themes' && <ThemesTab />}
+        {tab === 'backlog' && <AdminBacklog />}
+        {tab === 'announcements' && <AdminAnnouncements />}
         {tab === 'settings' && <SettingsTab />}
         {tab === 'audit' && <AuditTab />}
       </div>

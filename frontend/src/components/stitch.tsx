@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { forwardRef, ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import type { Role } from '../types';
 import { api } from '../api/client';
 
@@ -120,9 +120,9 @@ export function SectionCard({ children, className = '' }: { children: ReactNode;
 }
 
 export function IconBtn({
-  icon, children, onClick, active, tone = 'default', className = '',
+  icon, children, onClick, active, tone = 'default', className = '', title,
 }: {
-  icon: string; children?: ReactNode; onClick?: () => void; active?: boolean;
+  icon: string; children?: ReactNode; onClick?: () => void; active?: boolean; title?: string;
   tone?: 'default' | 'secondary' | 'error'; className?: string;
 }) {
   const tones = {
@@ -132,7 +132,7 @@ export function IconBtn({
   };
   return (
     <button
-      type="button" onClick={onClick}
+      type="button" onClick={onClick} title={title} aria-label={title}
       className={`py-2 px-3 rounded-lg font-headline text-label-md flex items-center justify-center gap-2 transition-colors ${tones[tone]} ${className}`}
     >
       <span className={`material-symbols-outlined text-[20px] ${active ? 'filled' : ''}`}>{icon}</span>
@@ -271,9 +271,11 @@ const inputCls = 'w-full px-3.5 py-2.5 bg-surface-container-low rounded-lg font-
 export function StitchInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputCls} ${props.className || ''}`} />;
 }
-export function StitchTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea {...props} className={`${inputCls} ${props.className || ''}`} />;
-}
+export const StitchTextarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  function StitchTextarea(props, ref) {
+    return <textarea {...props} ref={ref} className={`${inputCls} ${props.className || ''}`} />;
+  },
+);
 export function StitchSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={`${inputCls} ${props.className || ''}`} />;
 }

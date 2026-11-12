@@ -53,7 +53,7 @@ app.get('/swagger.json', (req, res) => res.json(swaggerSpec));
  *     security: []
  */
 app.get('/api/status', async (req, res) => {
-  const result = { app: 'charte-ia', status: 'ok', schema: SCHEMA, dependencies: {} };
+  const result = { app: 'charte-ia', version: require('./package.json').version, status: 'ok', schema: SCHEMA, dependencies: {} };
   try {
     await pool.query('SELECT 1');
     result.dependencies.database = { ok: true };
@@ -81,6 +81,9 @@ app.use('/api/v1/account', require('./modules/account/account.routes'));
 app.use('/api/v1/ambassadors', require('./modules/ambassadors/ambassadors.routes'));
 app.use('/api/v1/comments', require('./modules/comments/comments.routes'));
 app.use('/api/v1/gamification', require('./modules/gamification/gamification.routes'));
+app.use('/api/v1/backlog', require('./modules/backlog/backlog.routes'));
+app.use('/api/v1/announcements', require('./modules/announcements/announcements.routes'));
+app.use('/api/v1/wall', require('./modules/wall/wall.routes'));
 app.use('/api/v1', require('./modules/public/public.routes'));
 
 app.use((req, res) => res.status(404).json({ error: 'Route introuvable' }));

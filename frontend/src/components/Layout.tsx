@@ -5,6 +5,9 @@ import { Avatar, Modal } from './stitch';
 import ProgressionPanel from './ProgressionPanel';
 import InstallPrompt, { IosHelp, useInstallAction } from './InstallPrompt';
 import { useGamification } from '../hooks/useGamification';
+import Announcements from './Announcements';
+import WhatsNew from './WhatsNew';
+import { VERSION } from '../changelog';
 
 const navCls = ({ isActive }: { isActive: boolean }) =>
   `px-2.5 py-1.5 font-headline text-label-md rounded-full transition-colors whitespace-nowrap ${
@@ -29,6 +32,7 @@ export default function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [progressOpen, setProgressOpen] = useState(false);
+  const [newsOpen, setNewsOpen] = useState(false);
   const [bumpKey, setBumpKey] = useState(0);
   const [gain, setGain] = useState(0);
   const prevPoints = useRef<number | null>(null);
@@ -59,8 +63,9 @@ export default function Layout() {
     { to: '/experimentations', label: 'Expérimentations', icon: 'science', show: true },
     { to: '/risques', label: 'Risques', icon: 'warning', show: true },
     { to: '/votes', label: 'Votes', icon: 'how_to_vote', show: true },
+    { to: '/mur', label: 'Le Mur', icon: 'forum', show: true },
     { to: '/iambassadeurs', label: 'Les IAmbassadeurs', icon: 'groups', show: true },
-    { to: '/cartographie', label: 'Cartographie', icon: 'hub', show: true },
+    { to: '/cartographie', label: 'Cartographie', icon: 'hub', show: isIanimateur },
     { to: '/analyse', label: 'Analyse', icon: 'analytics', show: isIanimateur },
     { to: '/admin', label: 'Admin', icon: 'admin_panel_settings', show: isAdmin },
   ].filter((l) => l.show);
@@ -89,13 +94,19 @@ export default function Layout() {
           >
             <span className="material-symbols-outlined">{navOpen ? 'close' : 'menu'}</span>
           </button>
-          <NavLink to="/" className="flex items-center gap-3 shrink-0 mr-auto xl:mr-0">
-            <img alt="Logo IAmbassadeurs Ivry" className="h-8 w-auto object-contain" src="/logo.svg" />
-            <div className="hidden sm:flex flex-col">
-              <span className="font-headline text-headline-sm text-primary leading-tight tracking-tight">IAmbassadeurs</span>
-              <span className="font-headline text-label-sm text-outline tracking-wider uppercase">Ville d'Ivry-sur-Seine</span>
-            </div>
-          </NavLink>
+          {/* Le logo porte déjà le nom : pas de texte en doublon à côté. */}
+          <div className="flex items-center gap-2 shrink-0 mr-auto xl:mr-0">
+            <NavLink to="/" aria-label="IAmbassadeurs — Ville d'Ivry-sur-Seine, accueil">
+              <img alt="IAmbassadeurs — Ville d'Ivry-sur-Seine" className="h-11 w-auto object-contain" src="/logo.svg" />
+            </NavLink>
+            <button
+              type="button" onClick={() => setNewsOpen(true)}
+              title="Voir les nouveautés de cette version" aria-label={`Version ${VERSION} : voir les nouveautés`}
+              className="px-2 py-0.5 rounded-full bg-surface-container font-mono text-[11px] text-on-surface-variant hover:bg-surface-container-high"
+            >
+              v{VERSION}
+            </button>
+          </div>
 
           <nav className="hidden xl:flex items-center gap-0.5 shrink-0" aria-label="Navigation principale">
             {links.map((l) => <NavLink key={l.to} to={l.to} end={l.end} className={navCls}>{l.label}</NavLink>)}
@@ -177,6 +188,12 @@ export default function Layout() {
                   </NavLink>
                   <button
                     className="flex w-full items-center gap-2 px-4 py-2 font-body text-body-md text-on-surface-variant hover:bg-surface-container"
+                    onClick={() => { setMenuOpen(false); setNewsOpen(true); }}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">new_releases</span> Nouveautés
+                  </button>
+                  <button
+                    className="flex w-full items-center gap-2 px-4 py-2 font-body text-body-md text-on-surface-variant hover:bg-surface-container"
                     onClick={() => { logout(); navigate('/login'); }}
                   >
                     <span className="material-symbols-outlined text-[18px]">logout</span> Se déconnecter
@@ -228,7 +245,9 @@ export default function Layout() {
       </Modal>
       <InstallPrompt available={install.available} run={install.run} />
       {install.help && <IosHelp onClose={install.closeHelp} />}
+      <WhatsNew open={newsOpen} onClose={() => setNewsOpen(false)} />
       <main className="pt-16 min-h-screen">
+        <Announcements />
         <Outlet />
       </main>
       <footer className="no-print w-full bg-surface-container-low mt-auto py-10 shadow-[0_-1px_6px_rgba(0,0,0,0.02)]">
@@ -243,7 +262,15 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-6 font-body text-body-sm text-outline">
-            <p>© 2026 Ivry-sur-Seine</p>
+            <p>
+              © 2026 Ivry-sur-Seine ·{' '}
+              <button
+                type="button" className="underline hover:text-on-surface"
+                title="Voir les nouveautés de chaque version" onClick={() => setNewsOpen(true)}
+              >
+                version {VERSION}
+              </button>
+            </p>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-tertiary-fixed-dim" />
               <span className="font-headline text-label-sm text-on-surface-variant">Réseau d'agents IAmbassadeurs actif</span>
