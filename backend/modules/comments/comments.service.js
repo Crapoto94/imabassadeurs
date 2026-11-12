@@ -1,6 +1,7 @@
 const { db, SCHEMA } = require('../../pg_db');
 const notifications = require('../../services/notifications');
 const { supprimerReferences } = require('../../utils/polymorphic');
+const mentions = require('../mentions/mentions.service');
 
 const ENTITY_TABLES = {
   resource: { table: 'resources', owner: 'proposed_by', category: 'resources' },
@@ -43,11 +44,12 @@ async function list(entityType, entityId, currentUserId) {
 async function add(user, entityType, entityId, body, parentId = null, sourceRef = null) {
   if (!ENTITY_TABLES[entityType]) throw Object.assign(new Error('Type d’entité invalide'), { status: 400 });
   if (!body || !body.trim()) throw Object.assign(new Error('Commentaire vide'), { status: 400 });
+  const m = await mentions.normalize(user, body.trim());
 
   const row = await db.get(
     `INSERT INTO ${SCHEMA}.comments (entity_type, entity_id, parent_id, author_id, body, source_ref)
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-    [entityType, entityId, parentId || null, user.id, body.trim(),
+    [entityType, entityId, parentId || null, user.id, m.body,
       sourceRef && String(sourceRef).trim() ? String(sourceRef).trim() : null]
   );
 
@@ -63,6 +65,10 @@ async function add(user, entityType, entityId, body, parentId = null, sourceRef 
   for (const r of recipients) {
     await notifications.notifier([r.userId], r.category, entityType, entityId, r.msg);
   }
+  await mentions.notify({
+    author: user, ids: m.ids, everyone: m.everyone, entityType, entityId,
+    where: 'dans un commentaire', skip: recipients.map((r) => r.userId),
+  });
   return row.id;
 }
 
@@ -88,18 +94,24 @@ async function threadText(entityType, entityId) {
       ORDER BY c.created_at ASC`,
     [entityType, entityId]
   );
-  return rows.map((r) => `${r.author} : ${r.body}`).join('\n');
+  return rows.map((r) => `${r.author} : ${mentions.toPlain(r.body)}`).join('\n');
 }
 
 // Édition/suppression d'un commentaire : son auteur ou un administrateur.
 async function update(user, commentId, body) {
-  const c = await db.get(`SELECT author_id FROM ${SCHEMA}.comments WHERE id=$1`, [commentId]);
+  const c = await db.get(`SELECT author_id, entity_type, entity_id, body FROM ${SCHEMA}.comments WHERE id=$1`, [commentId]);
   if (!c) throw Object.assign(new Error('Commentaire introuvable'), { status: 404 });
   if (c.author_id !== user.id && !user.roles.includes('admin')) {
     throw Object.assign(new Error('Droits insuffisants'), { status: 403 });
   }
   if (!body || !body.trim()) throw Object.assign(new Error('Commentaire vide'), { status: 400 });
-  await db.run(`UPDATE ${SCHEMA}.comments SET body=$2, edited_at=now() WHERE id=$1`, [commentId, body.trim()]);
+  const m = await mentions.normalize(user, body.trim());
+  const before = mentions.extract(c.body);
+  await db.run(`UPDATE ${SCHEMA}.comments SET body=$2, edited_at=now() WHERE id=$1`, [commentId, m.body]);
+  await mentions.notify({
+    author: user, ids: new Set([...m.ids].filter((x) => !before.ids.has(x))), everyone: m.everyone && !before.everyone,
+    entityType: c.entity_type, entityId: c.entity_id, where: 'dans un commentaire',
+  });
   return { id: commentId, edited: true };
 }
 

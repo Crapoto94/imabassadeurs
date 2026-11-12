@@ -2,6 +2,7 @@ const { db, SCHEMA } = require('../../pg_db');
 const { ApiError } = require('../../utils/errors');
 const { logAction } = require('../../utils/audit');
 const notifications = require('../../services/notifications');
+const mentions = require('../mentions/mentions.service');
 
 const MAX_BODY = 2000;
 // Réactions rapides proposées (liste fermée : pas de texte libre dans la colonne emoji).
@@ -43,7 +44,7 @@ async function fetchPosts(user, where, args, limit = 1) {
       byEmoji.set(x.emoji, e);
     }
     const quoted = r.q_id
-      ? { id: r.q_id, author_name: r.q_author, deleted: !!r.q_deleted, excerpt: r.q_deleted ? '' : r.q_body.slice(0, 200) }
+      ? { id: r.q_id, author_name: r.q_author, deleted: !!r.q_deleted, excerpt: r.q_deleted ? '' : mentions.toPlain(r.q_body).slice(0, 200) }
       : null;
     return {
       id: r.id, body: r.body, created_at: r.created_at, edited_at: r.edited_at,
@@ -64,9 +65,10 @@ async function list(user, { before, limit }) {
 }
 
 async function create(user, body) {
-  const text = clean(body.body);
+  const m = await mentions.normalize(user, clean(body.body));
+  const text = m.body;
   if (!text) throw new ApiError(400, 'Message vide');
-  if (text.length > MAX_BODY) throw new ApiError(400, `Le message ne doit pas dépasser ${MAX_BODY} caractères`);
+  if (mentions.toPlain(text).length > MAX_BODY) throw new ApiError(400, `Le message ne doit pas dépasser ${MAX_BODY} caractères`);
   let quote = null;
   if (body.quote_id) {
     quote = await db.get(`SELECT id, author_id FROM ${SCHEMA}.wall_posts WHERE id = $1 AND deleted_at IS NULL`, [parseInt(body.quote_id, 10)]);
@@ -80,6 +82,10 @@ async function create(user, body) {
     await notifications.notifier([quote.author_id], 'comment_replies', 'wall', row.id,
       `${user.display_name} a cité votre message sur le Mur de l'IA.`).catch(() => {});
   }
+  await mentions.notify({
+    author: user, ids: m.ids, everyone: m.everyone, entityType: 'wall', entityId: row.id,
+    where: "sur le Mur de l'IA", skip: quote?.author_id ? [quote.author_id] : [],
+  });
   return (await fetchPosts(user, 'AND p.id = $1', [row.id]))[0];
 }
 
@@ -92,10 +98,17 @@ async function ownPost(user, id) {
 async function update(user, id, body) {
   const post = await ownPost(user, id);
   if (post.author_id !== user.id) throw new ApiError(403, 'Seul l’auteur peut modifier son message');
-  const text = clean(body.body);
+  const m = await mentions.normalize(user, clean(body.body));
+  const text = m.body;
   if (!text) throw new ApiError(400, 'Message vide');
-  if (text.length > MAX_BODY) throw new ApiError(400, `Le message ne doit pas dépasser ${MAX_BODY} caractères`);
+  if (mentions.toPlain(text).length > MAX_BODY) throw new ApiError(400, `Le message ne doit pas dépasser ${MAX_BODY} caractères`);
+  const before = mentions.extract((await db.get(`SELECT body FROM ${SCHEMA}.wall_posts WHERE id = $1`, [id])).body);
   await db.run(`UPDATE ${SCHEMA}.wall_posts SET body = $2, edited_at = now() WHERE id = $1`, [id, text]);
+  // Seules les personnes nouvellement citées sont prévenues.
+  await mentions.notify({
+    author: user, ids: new Set([...m.ids].filter((x) => !before.ids.has(x))), everyone: m.everyone && !before.everyone,
+    entityType: 'wall', entityId: id, where: "sur le Mur de l'IA",
+  });
   return (await fetchPosts(user, 'AND p.id = $1', [id]))[0];
 }
 

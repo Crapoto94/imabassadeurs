@@ -266,7 +266,7 @@ export function GhostButton({ children, onClick, disabled, icon, className = '',
   );
 }
 
-const inputCls = 'w-full px-3.5 py-2.5 bg-surface-container-low rounded-lg font-body text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-secondary/20 transition-all';
+export const inputCls = 'w-full px-3.5 py-2.5 bg-surface-container-low rounded-lg font-body text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-secondary/20 transition-all';
 
 export function StitchInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputCls} ${props.className || ''}`} />;

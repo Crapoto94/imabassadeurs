@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createWallPost, deleteWallPost, getWall, reactWallPost, updateWallPost } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
-import { Avatar, EditedAt, GhostButton, PageHeader, PrimaryButton, SectionCard, StitchAlert, StitchEmpty, StitchSpinner, StitchTextarea, timeAgo, useToast } from '../components/stitch';
+import { Avatar, EditedAt, GhostButton, PageHeader, PrimaryButton, SectionCard, StitchAlert, StitchEmpty, StitchSpinner, inputCls, timeAgo, useToast } from '../components/stitch';
+import { MentionField, MentionText, decodeMentions, encodeMentions, plainMentions } from '../components/Mentions';
+import type { Mention } from '../components/Mentions';
 import type { WallPost } from '../types';
 
 const MAX = 2000;
@@ -40,11 +42,13 @@ function Composer({ quote, onClearQuote, initial = '', submitLabel = 'Publier', 
   quote?: WallPost['quote'] | null; onClearQuote?: () => void; initial?: string; submitLabel?: string;
   onSubmit: (text: string) => Promise<void>; onCancel?: () => void; autoFocus?: boolean;
 }) {
-  const [text, setText] = useState(initial);
+  const decoded = useRef(decodeMentions(initial));
+  const mentionsRef = useRef<Mention[]>(decoded.current.mentions);
+  const [text, setText] = useState(decoded.current.text);
   const [picker, setPicker] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const area = useRef<HTMLTextAreaElement>(null);
+  const area = useRef<HTMLTextAreaElement | null>(null);
 
   const insert = (emoji: string) => {
     const el = area.current;
@@ -60,7 +64,7 @@ function Composer({ quote, onClearQuote, initial = '', submitLabel = 'Publier', 
     const value = withSmileys(text).trim();
     if (!value || busy) return;
     setBusy(true); setErr(null);
-    try { await onSubmit(value); setText(''); } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
+    try { await onSubmit(encodeMentions(value, mentionsRef.current)); setText(''); mentionsRef.current = []; } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
   };
 
   return (
@@ -77,10 +81,11 @@ function Composer({ quote, onClearQuote, initial = '', submitLabel = 'Publier', 
         </div>
       )}
       {err && <StitchAlert kind="error">{err}</StitchAlert>}
-      <StitchTextarea
-        ref={area} rows={3} maxLength={MAX} value={text} autoFocus={autoFocus}
-        placeholder="Exprimez-vous : une question, un avis, une découverte sur l'IA…"
-        onChange={(e) => setText(e.target.value)}
+      <MentionField
+        multiline textareaRef={area} mentionsRef={mentionsRef} className={inputCls}
+        rows={3} maxLength={MAX} value={text} autoFocus={autoFocus}
+        placeholder="Exprimez-vous : une question, un avis… Tapez @ pour citer quelqu'un."
+        onChange={setText}
         onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } }}
       />
       <div className="relative flex flex-wrap items-center gap-2">
@@ -141,7 +146,7 @@ function Post({ post, quickReactions, meId, canModerate, onChange, onRemoved, on
               />
             </div>
           ) : (
-            <p className="mt-1.5 font-body text-body-md text-on-surface whitespace-pre-wrap break-words">{post.body}</p>
+            <p className="mt-1.5 font-body text-body-md text-on-surface whitespace-pre-wrap break-words"><MentionText text={post.body} /></p>
           )}
 
           {/* Réactions + actions */}
@@ -244,7 +249,7 @@ export default function Wall() {
       <div ref={composerRef}>
         <SectionCard className="p-4">
           <Composer
-            quote={quote ? { id: quote.id, author_name: quote.author_name, excerpt: quote.body.slice(0, 200), deleted: false } : null}
+            quote={quote ? { id: quote.id, author_name: quote.author_name, excerpt: plainMentions(quote.body).slice(0, 200), deleted: false } : null}
             onClearQuote={() => setQuote(null)}
             onSubmit={publish}
           />

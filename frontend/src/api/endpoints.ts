@@ -195,4 +195,9 @@ export type BadgeCounts = Partial<Record<'ressources' | 'experimentations' | 'ri
 export const getBadges = () => api.get<BadgeCounts>('/api/v1/badges').then((r) => r.data);
 export const markSectionSeen = (section: string) => api.post(`/api/v1/badges/${section}/seen`).then((r) => r.data);
 
+// ── Tags « @ » ──
+export interface MentionUser { id: number; display_name: string; direction: string | null; avatar_v: number | null }
+export const searchMentions = (q: string) =>
+  api.get<MentionUser[]>('/api/v1/mentions/search', { params: { q } }).then((r) => r.data);
+
 export { API_URL };

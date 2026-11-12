@@ -12,6 +12,13 @@ export type Release = { version: string; date: string; type: 'minor' | 'patch'; 
 
 export const VERSIONS: Release[] = [
   {
+    version: '1.2.0', date: '2026-11-12', type: 'minor', title: 'Citer quelqu\'un avec @',
+    items: [
+      "Dans le Mur et dans les commentaires, tapez @ puis un nom pour citer un collègue : il est prévenu.",
+      "Les administrateurs et IAnimateurs peuvent écrire @tout le monde pour prévenir tous les utilisateurs.",
+    ],
+  },
+  {
     version: '1.1.0', date: '2026-11-12', type: 'minor', title: 'Pastilles de nouveautés dans le menu',
     items: [
       "Chaque rubrique du menu affiche une pastille avec le nombre de nouveautés depuis votre dernière visite (messages du Mur, ressources, expérimentations, risques, votes).",

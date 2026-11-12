@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { addComment, deleteComment, getComments, likeComment, updateComment } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { useGamification } from '../hooks/useGamification';
 import { Avatar, EditedAt, StitchAlert, StitchEmpty, StitchSpinner, timeAgo, useToast } from './stitch';
+import { MentionField, MentionText, decodeMentions, encodeMentions } from './Mentions';
+import type { Mention } from './Mentions';
 import type { Comment } from '../types';
 
 function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment; onChanged: () => void; isReply?: boolean }) {
@@ -12,7 +14,10 @@ function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editBody, setEditBody] = useState(comment.body);
+  const decoded = useRef(decodeMentions(comment.body));
+  const [editBody, setEditBody] = useState(decoded.current.text);
+  const replyMentions = useRef<Mention[]>([]);
+  const editMentions = useRef<Mention[]>(decoded.current.mentions);
 
   const peutModerer = user?.id === comment.author_id || user?.roles?.includes('admin');
 
@@ -20,7 +25,8 @@ function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment
     if (!body.trim()) return;
     setBusy(true);
     try {
-      await addComment((comment as any).entity_type, (comment as any).entity_id, body, comment.id);
+      await addComment((comment as any).entity_type, (comment as any).entity_id, encodeMentions(body, replyMentions.current), comment.id);
+      replyMentions.current = [];
       setBody(''); setReplying(false); onChanged();
     } finally { setBusy(false); }
   }
@@ -28,7 +34,7 @@ function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment
   async function saveEdit() {
     if (!editBody.trim()) return;
     setBusy(true);
-    try { await updateComment(comment.id, editBody); setEditing(false); onChanged(); }
+    try { await updateComment(comment.id, encodeMentions(editBody, editMentions.current)); setEditing(false); onChanged(); }
     finally { setBusy(false); }
   }
 
@@ -57,18 +63,18 @@ function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment
           </div>
           {editing ? (
             <div className="space-y-2 pt-1">
-              <textarea
-                rows={2} value={editBody} onChange={(e) => setEditBody(e.target.value)}
+              <MentionField
+                multiline rows={2} value={editBody} onChange={setEditBody} mentionsRef={editMentions}
                 className="w-full px-3 py-2 bg-surface-container-low rounded-lg font-body text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/20"
               />
               <div className="flex gap-2">
                 <button className="px-3 py-1 bg-secondary text-on-secondary rounded-full font-headline text-label-sm disabled:opacity-50" onClick={saveEdit} disabled={busy} type="button">Enregistrer</button>
-                <button className="px-3 py-1 bg-surface-container text-on-surface-variant rounded-full font-headline text-label-sm" onClick={() => { setEditing(false); setEditBody(comment.body); }} type="button">Annuler</button>
+                <button className="px-3 py-1 bg-surface-container text-on-surface-variant rounded-full font-headline text-label-sm" onClick={() => { setEditing(false); setEditBody(decoded.current.text); editMentions.current = decoded.current.mentions; }} type="button">Annuler</button>
               </div>
             </div>
           ) : (
             <>
-              <p className="whitespace-pre-wrap font-body text-body-sm text-on-surface-variant">{comment.body}</p>
+              <p className="whitespace-pre-wrap font-body text-body-sm text-on-surface-variant"><MentionText text={comment.body} /></p>
               {comment.source_ref && (
                 <p className="flex items-center gap-1 font-body text-body-sm text-outline text-[11px]">
                   <span className="material-symbols-outlined text-[14px]">link</span>{comment.source_ref}
@@ -98,11 +104,14 @@ function CommentItem({ comment, onChanged, isReply = false }: { comment: Comment
           )}
           {replying && (
             <div className="flex items-center gap-2 pt-2">
-              <input
-                className="flex-1 pl-3 pr-3 py-2 bg-surface-container-low rounded-full font-body text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-secondary/20"
-                placeholder="Votre réponse…" value={body} onChange={(e) => setBody(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && submitReply()}
-              />
+              <div className="flex-1">
+                <MentionField
+                  mentionsRef={replyMentions}
+                  className="w-full pl-3 pr-3 py-2 bg-surface-container-low rounded-full font-body text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-secondary/20"
+                  placeholder="Votre réponse… (@ pour citer)" value={body} onChange={setBody}
+                  onKeyDown={(e) => e.key === 'Enter' && submitReply()}
+                />
+              </div>
               <button className="p-1.5 text-secondary hover:text-secondary-container disabled:opacity-50" onClick={submitReply} disabled={busy || !body.trim()} aria-label="Envoyer" type="button">
                 <span className="material-symbols-outlined text-[20px]">send</span>
               </button>
@@ -126,6 +135,7 @@ export default function CommentThread({ entityType, entityId }: { entityType: st
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
+  const bodyMentions = useRef<Mention[]>([]);
   const [sourceRef, setSourceRef] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -145,7 +155,8 @@ export default function CommentThread({ entityType, entityId }: { entityType: st
     if (!body.trim()) return;
     setBusy(true);
     try {
-      await addComment(entityType, entityId, body, undefined, sourceRef.trim() || undefined);
+      await addComment(entityType, entityId, encodeMentions(body, bodyMentions.current), undefined, sourceRef.trim() || undefined);
+      bodyMentions.current = [];
       setBody(''); setSourceRef('');
       const after = await refresh();
       const delta = (after?.points ?? 0) - (summary?.points ?? 0);
@@ -171,9 +182,10 @@ export default function CommentThread({ entityType, entityId }: { entityType: st
           <Avatar name={user?.display_name} size={28} userId={user?.id} v={user?.avatar_v} />
           <div className="relative flex-1 space-y-1.5">
             <div className="relative">
-              <input
+              <MentionField
+                mentionsRef={bodyMentions}
                 className="w-full pl-3 pr-9 py-2 bg-surface-container-lowest rounded-full font-body text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-secondary/20 shadow-sm"
-                placeholder="Ajouter une observation bienveillante…" value={body} onChange={(e) => setBody(e.target.value)}
+                placeholder="Ajouter une observation bienveillante… (@ pour citer)" value={body} onChange={setBody}
                 onKeyDown={(e) => e.key === 'Enter' && submit()}
               />
               <button
