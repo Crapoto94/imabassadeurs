@@ -1,0 +1,9 @@
+# Frontend DMZ (172.17.1.3) — iambassadeurs.ivry94.fr -> :5311
+# Flux : DMZ -> backend interne (règle FW). Déployé par pulldmz.ps1 (copie SSH, sans git).
+services:
+  frontend-dmz:
+    build: .
+    restart: always
+    ports: ["5311:80"]
+    environment:
+      - BACKEND_URL=${BACKEND_URL:-http://10.103.130.106:5310}
