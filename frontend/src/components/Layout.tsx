@@ -5,6 +5,8 @@ import { Avatar, Modal } from './stitch';
 import ProgressionPanel from './ProgressionPanel';
 import InstallPrompt, { IosHelp, useInstallAction } from './InstallPrompt';
 import { useGamification } from '../hooks/useGamification';
+import { useBadges } from '../hooks/useBadges';
+import type { BadgeCounts } from '../api/endpoints';
 import Announcements from './Announcements';
 import WhatsNew from './WhatsNew';
 import { VERSION } from '../changelog';
@@ -23,10 +25,22 @@ const mobileNavCls = ({ isActive }: { isActive: boolean }) =>
       : 'text-on-surface-variant hover:bg-surface-container'
   }`;
 
+// Pastille « nouveau » d'une rubrique du menu (nombre de nouveautés depuis la dernière visite).
+function NavBadge({ n }: { n?: number }) {
+  if (!n) return null;
+  return (
+    <span className="ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-error px-1 font-headline text-[11px] leading-none text-on-error">
+      <span aria-hidden="true">{n > 99 ? '99+' : n}</span>
+      <span className="sr-only"> {n} nouveau(x)</span>
+    </span>
+  );
+}
+
 // En-tête fixe type maquette Stitch : logo, nav horizontale, actions, avatar.
 export default function Layout() {
   const { user, logout, isAdmin, isIanimateur, canInteract } = useAuth();
   const { summary } = useGamification();
+  const { counts } = useBadges();
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -59,15 +73,15 @@ export default function Layout() {
 
   const links = [
     { to: '/', label: 'Accueil', icon: 'home', end: true, show: true },
-    { to: '/ressources', label: 'Base documentaire', icon: 'library_books', show: true },
-    { to: '/experimentations', label: 'Expérimentations', icon: 'science', show: true },
-    { to: '/risques', label: 'Risques', icon: 'warning', show: true },
-    { to: '/votes', label: 'Votes', icon: 'how_to_vote', show: true },
-    { to: '/mur', label: 'Le Mur', icon: 'forum', show: true },
+    { to: '/ressources', label: 'Base documentaire', icon: 'library_books', badge: 'ressources' as keyof BadgeCounts, show: true },
+    { to: '/experimentations', label: 'Expérimentations', icon: 'science', badge: 'experimentations' as keyof BadgeCounts, show: true },
+    { to: '/risques', label: 'Risques', icon: 'warning', badge: 'risques' as keyof BadgeCounts, show: true },
+    { to: '/votes', label: 'Votes', icon: 'how_to_vote', badge: 'votes' as keyof BadgeCounts, show: true },
+    { to: '/mur', label: 'Le Mur', icon: 'forum', badge: 'mur' as keyof BadgeCounts, show: true },
     { to: '/iambassadeurs', label: 'Les IAmbassadeurs', icon: 'groups', show: true },
     { to: '/cartographie', label: 'Cartographie', icon: 'hub', show: isIanimateur },
     { to: '/analyse', label: 'Analyse', icon: 'analytics', show: isIanimateur },
-    { to: '/admin', label: 'Admin', icon: 'admin_panel_settings', show: isAdmin },
+    { to: '/admin', label: 'Admin', icon: 'admin_panel_settings', badge: 'admin' as keyof BadgeCounts, show: isAdmin },
   ].filter((l) => l.show);
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -109,7 +123,7 @@ export default function Layout() {
           </div>
 
           <nav className="hidden xl:flex items-center gap-0.5 shrink-0" aria-label="Navigation principale">
-            {links.map((l) => <NavLink key={l.to} to={l.to} end={l.end} className={navCls}>{l.label}</NavLink>)}
+            {links.map((l) => <NavLink key={l.to} to={l.to} end={l.end} className={navCls}>{l.label}<NavBadge n={l.badge ? counts[l.badge] : 0} /></NavLink>)}
           </nav>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -216,6 +230,7 @@ export default function Layout() {
                 <NavLink key={l.to} to={l.to} end={l.end} className={mobileNavCls}>
                   <span className="material-symbols-outlined text-[20px]">{l.icon}</span>
                   {l.label}
+                  <NavBadge n={l.badge ? counts[l.badge] : 0} />
                 </NavLink>
               ))}
               {install.available && (

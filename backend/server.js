@@ -84,6 +84,7 @@ app.use('/api/v1/gamification', require('./modules/gamification/gamification.rou
 app.use('/api/v1/backlog', require('./modules/backlog/backlog.routes'));
 app.use('/api/v1/announcements', require('./modules/announcements/announcements.routes'));
 app.use('/api/v1/wall', require('./modules/wall/wall.routes'));
+app.use('/api/v1/badges', require('./modules/badges/badges.routes'));
 app.use('/api/v1', require('./modules/public/public.routes'));
 
 app.use((req, res) => res.status(404).json({ error: 'Route introuvable' }));

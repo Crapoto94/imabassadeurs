@@ -190,4 +190,9 @@ export const deleteWallPost = (id: number) => api.delete(`/api/v1/wall/${id}`).t
 export const reactWallPost = (id: number, emoji: string) =>
   api.post<WallPost>(`/api/v1/wall/${id}/reactions`, { emoji }).then((r) => r.data);
 
+// ── Pastilles « nouveau » du menu ──
+export type BadgeCounts = Partial<Record<'ressources' | 'experimentations' | 'risques' | 'votes' | 'mur' | 'admin', number>>;
+export const getBadges = () => api.get<BadgeCounts>('/api/v1/badges').then((r) => r.data);
+export const markSectionSeen = (section: string) => api.post(`/api/v1/badges/${section}/seen`).then((r) => r.data);
+
 export { API_URL };

@@ -1,6 +1,6 @@
 {
   "name": "charte-ia-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "IAmbassadeurs - Plateforme collaborative Charte Ethique IA (Ville d'Ivry-sur-Seine)",
   "main": "server.js",
   "scripts": {

@@ -12,6 +12,14 @@ export type Release = { version: string; date: string; type: 'minor' | 'patch'; 
 
 export const VERSIONS: Release[] = [
   {
+    version: '1.1.0', date: '2026-11-12', type: 'minor', title: 'Pastilles de nouveautés dans le menu',
+    items: [
+      "Chaque rubrique du menu affiche une pastille avec le nombre de nouveautés depuis votre dernière visite (messages du Mur, ressources, expérimentations, risques, votes).",
+      "Les administrateurs voient sur Admin le nombre de demandes du backlog en attente.",
+    ],
+  },
+
+  {
     version: '1.0.0', date: '2026-11-12', type: 'minor', title: 'Première version',
     items: [
       "Base documentaire, expérimentations, risques, votes et cartographie de la Charte éthique de l'IA.",
