@@ -7,9 +7,42 @@ const { pageParams } = require('../../utils/pagination');
 const { logAction } = require('../../utils/audit');
 const { supprimerReferences } = require('../../utils/polymorphic');
 const themes = require('../themes/themes.service');
+const { convertPresentationToPdf } = require('../../services/presentationConverter');
 
 const isModerator = (user) => user.roles.includes('ianimateur') || user.roles.includes('admin');
 const LEVELS = ['debutant', 'intermediaire', 'avance'];
+const KINDS = ['pdf', 'link', 'presentation'];
+const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
+const MAX_PDF_BYTES = 5 * 1024 * 1024;
+const MAX_PRESENTATION_BYTES = 20 * 1024 * 1024;
+const PDF_EXT = /\.pdf$/i;
+const PRESENTATION_EXT = /\.(pptx?|odp)$/i;
+const OFFICE_PRESENTATION_EXT = /\.(pptx?)$/i;
+
+
+// Nettoie un fichier uploadé lorsque la validation échoue.
+function supprimerFichierUpload(file) {
+  if (file?.path) fs.promises.unlink(file.path).catch(() => {});
+}
+
+function validerFichier(kind, file) {
+  if (kind === 'pdf') {
+    if (!PDF_EXT.test(file.originalname || '') || file.mimetype !== 'application/pdf') {
+      throw Object.assign(new Error('Le document doit être un fichier PDF'), { status: 400 });
+    }
+    if (file.size > MAX_PDF_BYTES) {
+      throw Object.assign(new Error('Le fichier PDF ne doit pas dépasser 5 Mo'), { status: 400 });
+    }
+  } else if (kind === 'presentation') {
+    const mime = file.mimetype || '';
+    if (!PRESENTATION_EXT.test(file.originalname || '') && !mime.includes('presentation') && mime !== 'application/vnd.ms-powerpoint') {
+      throw Object.assign(new Error('La présentation doit être au format .ppt, .pptx ou .odp'), { status: 400 });
+    }
+    if (file.size > MAX_PRESENTATION_BYTES) {
+      throw Object.assign(new Error('La présentation ne doit pas dépasser 20 Mo'), { status: 400 });
+    }
+  }
+}
 
 // Extrait le texte d'un PDF (best effort) pour l'alimentation des prompts IA.
 async function extraireTexte(filePath) {
@@ -50,6 +83,13 @@ async function list(user, query) {
   }
   if (query.mandatory === 'true' || query.mandatory === true) {
     where += ' AND r.is_mandatory = true';
+  }
+  if (query.format === 'presentation') {
+    where += ` AND (r.kind = 'presentation' OR r.content_type = 'presentation')`;
+  } else if (query.format === 'pdf') {
+    where += ` AND r.kind = 'pdf'`;
+  } else if (query.format === 'link') {
+    where += ` AND r.kind = 'link' AND (r.content_type IS DISTINCT FROM 'presentation')`;
   }
   params.push(limit, offset);
   let orderBy = 'r.created_at DESC';
@@ -99,28 +139,72 @@ async function getById(id, user) {
 async function create(user, data, file) {
   const { title, description, kind, url, level } = data;
   if (!title || !description) throw Object.assign(new Error('Titre et description requis'), { status: 400 });
-  if (kind === 'pdf' && !file) throw Object.assign(new Error('Fichier PDF requis'), { status: 400 });
-  if (kind === 'link' && !url) throw Object.assign(new Error('URL requise'), { status: 400 });
+  if (!KINDS.includes(kind)) throw Object.assign(new Error('Type de ressource invalide'), { status: 400 });
+  if ((kind === 'pdf' || kind === 'presentation') && !file) {
+    supprimerFichierUpload(file);
+    throw Object.assign(new Error(kind === 'pdf' ? 'Fichier PDF requis' : 'Fichier de présentation requis'), { status: 400 });
+  }
+  if (kind === 'link' && !url) {
+    supprimerFichierUpload(file);
+    throw Object.assign(new Error('URL requise'), { status: 400 });
+  }
+  if (kind === 'link' && file) supprimerFichierUpload(file);
+
+  if (kind !== 'link') {
+    try {
+      validerFichier(kind, file);
+    } catch (err) {
+      supprimerFichierUpload(file);
+      throw err;
+    }
+  }
+
+  // Aperçu PDF : conversion des présentations PowerPoint (les ODP restent téléchargeables).
+  let preview_path = null;
+  if (kind === 'presentation' && OFFICE_PRESENTATION_EXT.test(file.originalname || '')) {
+    const previewName = `${path.parse(file.filename).name}.preview.pdf`;
+    const previewFull = path.join(UPLOADS_DIR, previewName);
+    try {
+      await convertPresentationToPdf(file.path, previewFull);
+      preview_path = previewName;
+    } catch (err) {
+      console.warn('[Présentation] conversion PDF impossible :', err.message);
+      fs.promises.unlink(previewFull).catch(() => {});
+    }
+  }
 
   const lvl = ['debutant', 'intermediaire', 'avance'].includes(level) ? level : 'debutant';
   const status = 'published';
   // Champs facultatifs
-  const content_type = ['article', 'rapport', 'video', 'mooc', 'jurisprudence', 'autre'].includes(data.content_type) ? data.content_type : null;
+  const contentTypes = ['article', 'rapport', 'video', 'mooc', 'jurisprudence', 'presentation', 'autre'];
+  const content_type = contentTypes.includes(data.content_type)
+    ? data.content_type
+    : (kind === 'presentation' ? 'presentation' : null);
   const reading_effort = ['court', 'moyen', 'long'].includes(data.reading_effort) ? data.reading_effort : null;
   const related_type = ['experiment', 'risk'].includes(data.related_type) ? data.related_type : null;
   const related_id = related_type && parseInt(data.related_id, 10) ? parseInt(data.related_id, 10) : null;
   const source = data.source && String(data.source).trim() ? String(data.source).trim() : null;
   const published_at = data.published_at ? String(data.published_at) : null;
 
-  const row = await db.get(
-    `INSERT INTO ${SCHEMA}.resources
-       (title, description, kind, file_path, url, proposed_by, status, level,
-        source, published_at, content_type, reading_effort, related_type, related_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-    [title, description, kind, file ? file.filename : null, kind === 'link' ? url : null, user.id, status, lvl,
-      source, published_at, content_type, reading_effort, related_type, related_id]
-  );
-  await logAction(user.id, 'resource_create', 'resource', row.id, { status, level: lvl });
+  let row;
+  try {
+    row = await db.get(
+      `INSERT INTO ${SCHEMA}.resources
+         (title, description, kind, file_path, url, proposed_by, status, level,
+          source, published_at, content_type, reading_effort, related_type, related_id,
+          original_name, mime_type, size_bytes, preview_path)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
+      [title, description, kind, file ? file.filename : null, kind === 'link' ? url : null, user.id, status, lvl,
+        source, published_at, content_type, reading_effort, related_type, related_id,
+        file ? String(file.originalname || '').slice(0, 300) || null : null,
+        file ? file.mimetype : null, file ? file.size : null, preview_path]
+    );
+  } catch (err) {
+    supprimerFichierUpload(file);
+    if (preview_path) fs.promises.unlink(path.join(UPLOADS_DIR, preview_path)).catch(() => {});
+    throw err;
+  }
+  await logAction(user.id, 'resource_create', 'resource', row.id, { status, level: lvl, kind });
   await themes.setEntityThemes('resource', row.id, data.theme_ids);
   return row.id;
 }
@@ -166,7 +250,8 @@ async function setProgress(user, id, progressPct) {
 
 async function synthesizeDocument(user, id) {
   const r = await getById(id, user);
-  const contenu = await extraireTexte(r.file_path ? path.join(__dirname, '..', '..', 'uploads', r.file_path) : null);
+  const sourcePath = r.preview_path || r.file_path;
+  const contenu = await extraireTexte(sourcePath ? path.join(UPLOADS_DIR, sourcePath) : null);
   return ia.executerActionIA('resource_synthesis', {
     titre: r.title,
     description: r.description,
@@ -214,13 +299,12 @@ async function setMandatory(user, id, mandatory) {
 
 async function remove(user, id) {
   if (!isModerator(user)) throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
-  const r = await db.get(`SELECT file_path FROM ${SCHEMA}.resources WHERE id=$1`, [id]);
+  const r = await db.get(`SELECT file_path, preview_path FROM ${SCHEMA}.resources WHERE id=$1`, [id]);
   if (!r) throw Object.assign(new Error('Ressource introuvable'), { status: 404 });
   await supprimerReferences('resource', id);
   await db.run(`DELETE FROM ${SCHEMA}.resources WHERE id=$1`, [id]);
-  if (r.file_path) {
-    const file = path.join(__dirname, '..', '..', 'uploads', r.file_path);
-    fs.promises.unlink(file).catch(() => {});
+  for (const stored of [r.file_path, r.preview_path]) {
+    if (stored) fs.promises.unlink(path.join(UPLOADS_DIR, stored)).catch(() => {});
   }
   await logAction(user.id, 'resource_delete', 'resource', id, null);
   return { id, deleted: true };

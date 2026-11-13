@@ -41,9 +41,13 @@ export interface Resource {
   id: number;
   title: string;
   description: string;
-  kind: 'pdf' | 'link';
+  kind: 'pdf' | 'link' | 'presentation';
   file_path: string | null;
   url: string | null;
+  original_name?: string | null;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  preview_path?: string | null;
   level?: 'debutant' | 'intermediaire' | 'avance';
   is_mandatory?: boolean;
   status: 'pending' | 'published' | 'rejected';

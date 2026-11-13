@@ -15,6 +15,10 @@ import { EditedAt, LevelBadge, MandatoryBadge, LEVELS, LEVEL_META } from '../com
 import { ThemePicker, ThemeChips } from '../components/Themes';
 import type { Resource, Theme } from '../types';
 
+const fmtSize = (bytes: number) => bytes >= 1024 * 1024
+  ? `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} Mo`
+  : `${Math.max(1, Math.round(bytes / 1024))} Ko`;
+
 export default function ResourceDetail() {
   const { id } = useParams();
   const rid = Number(id);
@@ -49,9 +53,10 @@ export default function ResourceDetail() {
     try { await completeResource(rid); await refresh(); load(); } catch { /* silencieux */ }
   }
 
-  // Auto-marquage : l'ouverture d'un PDF vaut consultation (Phase 1).
+  // Auto-marquage : l'ouverture d'un PDF ou d'un aperçu de présentation vaut consultation.
   useEffect(() => {
-    if (r?.kind === 'pdf' && r.file_path && (r.my_progress ?? 0) < 100) markRead();
+    const consultable = (r?.kind === 'pdf' && r.file_path) || (r?.kind === 'presentation' && r.preview_path);
+    if (consultable && (r.my_progress ?? 0) < 100) markRead();
     /* eslint-disable-next-line */
   }, [r?.id]);
 
@@ -117,18 +122,51 @@ export default function ResourceDetail() {
         <Card className="mb-6 space-y-4 p-5">
           <div className="flex flex-wrap items-center gap-2">
             <LevelBadge level={r.level} />
+            {(r.kind === 'presentation' || r.content_type === 'presentation') && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-surface-container px-2.5 py-0.5 font-headline text-label-sm text-on-surface-variant">
+                <span className="material-symbols-outlined text-[14px] text-tertiary">co_present</span>
+                Présentation
+              </span>
+            )}
             {r.is_mandatory && <MandatoryBadge />}
           </div>
           <ThemeChips themes={r.themes} />
           <p className="whitespace-pre-wrap text-slate-700">{r.description}</p>
           {r.kind === 'link' && r.url && detectVideo(r.url) && <VideoEmbed url={r.url} />}
           {r.kind === 'pdf' && r.file_path && <PdfEmbed src={`${API_URL}/uploads/${r.file_path}`} />}
+          {r.kind === 'presentation' && r.preview_path && (
+            <PdfEmbed src={`${API_URL}/uploads/${r.preview_path}`} />
+          )}
+          {r.kind === 'presentation' && !r.preview_path && (
+            <div className="flex items-start gap-3 rounded-xl border border-surface-container bg-surface-container-low p-4">
+              <span className="material-symbols-outlined text-[28px] text-tertiary">co_present</span>
+              <div>
+                <p className="font-headline text-label-md text-on-surface">Aperçu non disponible pour ce format</p>
+                <p className="font-body text-body-sm text-on-surface-variant">
+                  Téléchargez la présentation pour la consulter dans PowerPoint ou LibreOffice.
+                </p>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-3 text-xs text-slate-400">
             <EditedAt editedAt={r.edited_at} />
           </div>
           {r.kind === 'pdf' && r.file_path && (
             <a href={`${API_URL}/uploads/${r.file_path}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-ville-600 hover:underline">
               <FileText size={16} /> Ouvrir le document PDF
+            </a>
+          )}
+          {r.kind === 'presentation' && r.file_path && (
+            <a
+              href={`${API_URL}/uploads/${r.file_path}`}
+              target="_blank"
+              rel="noreferrer"
+              download={r.original_name || true}
+              onClick={markRead}
+              className="inline-flex items-center gap-2 text-sm text-ville-600 hover:underline"
+            >
+              <FileText size={16} />
+              Télécharger la présentation{r.original_name ? ` (${r.original_name}${r.size_bytes ? ` · ${fmtSize(r.size_bytes)}` : ''})` : ''}
             </a>
           )}
           {r.kind === 'link' && r.url && (

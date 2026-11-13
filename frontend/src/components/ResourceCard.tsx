@@ -11,7 +11,11 @@ import VideoEmbed, { detectVideo } from './VideoEmbed';
 import { Avatar, LevelBadge, MandatoryBadge, timeAgo, useToast } from './stitch';
 import type { Resource } from '../types';
 
-function ResourceTags({ res, isVideo }: { res: Resource; isVideo: boolean }) {
+const fmtSize = (bytes: number) => bytes >= 1024 * 1024
+  ? `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} Mo`
+  : `${Math.max(1, Math.round(bytes / 1024))} Ko`;
+
+function ResourceTags({ res, isVideo, isPresentation }: { res: Resource; isVideo: boolean; isPresentation: boolean }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(3);
@@ -24,10 +28,10 @@ function ResourceTags({ res, isVideo }: { res: Resource; isVideo: boolean }) {
       key: 'kind',
       node: (
         <span className={`${tagCls} bg-surface-container text-on-surface-variant`}>
-          <span className={`material-symbols-outlined text-[12px] ${res.kind === 'pdf' ? 'text-error' : isVideo ? 'text-tertiary' : 'text-secondary'}`}>
-            {res.kind === 'pdf' ? 'picture_as_pdf' : isVideo ? 'play_circle' : 'open_in_new'}
+          <span className={`material-symbols-outlined text-[12px] ${res.kind === 'pdf' ? 'text-error' : isPresentation ? 'text-tertiary' : isVideo ? 'text-tertiary' : 'text-secondary'}`}>
+            {res.kind === 'pdf' ? 'picture_as_pdf' : isPresentation ? 'co_present' : isVideo ? 'play_circle' : 'open_in_new'}
           </span>
-          <span>{res.kind === 'pdf' ? 'PDF' : isVideo ? 'Vidéo' : 'Lien'}</span>
+          <span>{res.kind === 'pdf' ? 'PDF' : isPresentation ? 'Présentation' : isVideo ? 'Vidéo' : 'Lien'}</span>
         </span>
       ),
     },
@@ -82,7 +86,7 @@ function ResourceTags({ res, isVideo }: { res: Resource; isVideo: boolean }) {
     const observer = new ResizeObserver(compute);
     observer.observe(wrap);
     return () => observer.disconnect();
-  }, [res.kind, res.level, res.is_mandatory, themeKey, isVideo]);
+  }, [res.kind, res.content_type, res.level, res.is_mandatory, themeKey, isVideo, isPresentation]);
 
   return (
     <div ref={wrapRef} className="relative flex min-w-0 flex-1 items-center">
@@ -125,6 +129,8 @@ export default function ResourceCard({ res, onChanged }: { res: Resource; onChan
   }
 
   const isVideo = res.kind === 'link' && !!res.url && !!detectVideo(res.url);
+  const isPresentation = res.kind === 'presentation' || res.content_type === 'presentation';
+  const thumbPath = res.kind === 'pdf' ? res.file_path : res.preview_path;
 
   return (
     <article className="bg-surface-container-lowest rounded-2xl p-3.5 shadow-card hover:shadow-card-hover transition-shadow flex flex-col gap-2.5">
@@ -134,19 +140,35 @@ export default function ResourceCard({ res, onChanged }: { res: Resource; onChan
           <div className="flex items-center gap-2 min-w-0">
             <Avatar name={res.proposed_by_name} size={20} />
             <span className="max-w-[9rem] shrink-0 truncate font-headline text-label-sm text-on-surface">{res.proposed_by_name}</span>
-            <ResourceTags res={res} isVideo={isVideo} />
+            <ResourceTags res={res} isVideo={isVideo} isPresentation={isPresentation} />
             <span className="shrink-0 whitespace-nowrap font-body text-[11px] text-outline">• {timeAgo(res.created_at)}</span>
           </div>
 
           <div className="flex gap-3">
-            {res.kind === 'pdf' && res.file_path && (
-              <PdfThumb src={`${API_URL}/uploads/${res.file_path}`} to={`/ressources/${res.id}`} width={80} />
+            {thumbPath && (
+              <PdfThumb src={`${API_URL}/uploads/${thumbPath}`} to={`/ressources/${res.id}`} width={80} />
+            )}
+            {res.kind === 'presentation' && !res.preview_path && (
+              <Link
+                to={`/ressources/${res.id}`}
+                className="flex h-[80px] w-[80px] shrink-0 items-center justify-center rounded-lg border border-surface-container bg-surface-container-low text-tertiary"
+                aria-label="Voir la présentation"
+              >
+                <span className="material-symbols-outlined text-[32px]">co_present</span>
+              </Link>
             )}
             <div className="min-w-0 flex-1">
               <h2 className="font-headline text-headline-sm text-primary font-bold hover:text-secondary transition-colors">
                 <Link to={`/ressources/${res.id}`}>{res.title}</Link>
               </h2>
               <p className="font-body text-body-sm text-on-surface-variant mt-1 line-clamp-2">{res.description}</p>
+              {res.kind === 'presentation' && (
+                <span className="mt-1 inline-flex max-w-full items-center gap-1 font-body text-[11px] text-outline">
+                  <span className="material-symbols-outlined text-[13px]">attach_file</span>
+                  <span className="truncate">{res.original_name || 'Présentation'}</span>
+                  {res.size_bytes ? <span>· {fmtSize(res.size_bytes)}</span> : null}
+                </span>
+              )}
             </div>
           </div>
 

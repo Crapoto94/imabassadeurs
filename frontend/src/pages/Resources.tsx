@@ -16,7 +16,7 @@ import type { Resource, Theme } from '../types';
 function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean; onClose: () => void; onDone: () => void; themes: Theme[] }) {
   const { show, Toast } = useToast();
   const { summary, refresh } = useGamification();
-  const [kind, setKind] = useState<'pdf' | 'link'>('link');
+  const [kind, setKind] = useState<'pdf' | 'link' | 'presentation'>('link');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [url, setUrl] = useState('');
@@ -52,10 +52,10 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
       form.append('level', level);
       form.append('theme_ids', JSON.stringify(themeIds));
       if (kind === 'link') form.append('url', url);
-      if (kind === 'pdf' && file) form.append('file', file);
+      if (kind !== 'link' && file) form.append('file', file);
       if (source.trim()) form.append('source', source.trim());
       if (publishedAt) form.append('published_at', publishedAt);
-      if (contentType) form.append('content_type', contentType);
+      if (contentType && kind !== 'presentation') form.append('content_type', contentType);
       if (readingEffort) form.append('reading_effort', readingEffort);
       if (relatedValue) {
         const [rt, rid] = relatedValue.split(':');
@@ -82,13 +82,17 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
           <StitchInput value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Ex: Rapport sur la gouvernance éthique des algorithmes municipaux" />
         </StitchField>
         <StitchField label="Type de source">
-          <div className="flex items-center gap-4 pt-1">
+          <div className="flex flex-wrap items-center gap-4 pt-1">
             <label className="flex items-center gap-1.5 font-body text-body-sm text-on-surface cursor-pointer">
-              <input type="radio" name="kind" className="accent-secondary" checked={kind === 'pdf'} onChange={() => setKind('pdf')} />
+              <input type="radio" name="kind" className="accent-secondary" checked={kind === 'pdf'} onChange={() => { setKind('pdf'); setFile(null); setUrl(''); }} />
               <span>Fichier PDF</span>
             </label>
             <label className="flex items-center gap-1.5 font-body text-body-sm text-on-surface cursor-pointer">
-              <input type="radio" name="kind" className="accent-secondary" checked={kind === 'link'} onChange={() => setKind('link')} />
+              <input type="radio" name="kind" className="accent-secondary" checked={kind === 'presentation'} onChange={() => { setKind('presentation'); setFile(null); setUrl(''); }} />
+              <span>Présentation PowerPoint</span>
+            </label>
+            <label className="flex items-center gap-1.5 font-body text-body-sm text-on-surface cursor-pointer">
+              <input type="radio" name="kind" className="accent-secondary" checked={kind === 'link'} onChange={() => { setKind('link'); setFile(null); }} />
               <span>Lien URL externe</span>
             </label>
           </div>
@@ -107,6 +111,23 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
               <span className="material-symbols-outlined text-[36px] text-secondary mb-1">upload_file</span>
               <span className="font-headline text-label-md text-primary font-bold">{file ? file.name : 'Cliquez pour choisir votre PDF'}</span>
               <input type="file" accept="application/pdf" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} required={!file} />
+            </label>
+          </StitchField>
+        ) : kind === 'presentation' ? (
+          <StitchField
+            label="Fichier de la présentation (.pptx, .ppt ou .odp — 20 Mo max)"
+            hint="Un aperçu PDF est généré pour les formats PowerPoint ; les ODP restent téléchargeables."
+          >
+            <label className="bg-surface-container-low hover:bg-surface-container rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all">
+              <span className="material-symbols-outlined text-[36px] text-secondary mb-1">co_present</span>
+              <span className="font-headline text-label-md text-primary font-bold">{file ? file.name : 'Cliquez pour choisir votre présentation'}</span>
+              <input
+                type="file"
+                accept=".pptx,.ppt,.odp,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.oasis.opendocument.presentation"
+                className="hidden"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                required={!file}
+              />
             </label>
           </StitchField>
         ) : (
@@ -141,6 +162,7 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
                   <option value="video">Vidéo</option>
                   <option value="mooc">MOOC / formation</option>
                   <option value="jurisprudence">Jurisprudence / texte officiel</option>
+                  <option value="presentation">Présentation / diaporama</option>
                   <option value="autre">Autre</option>
                 </StitchSelect>
               </StitchField>
@@ -195,6 +217,7 @@ export default function Resources() {
   const [sort, setSort] = useState<'created' | 'level' | 'rating'>('created');
   const [themeFilter, setThemeFilter] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
+  const [formatFilter, setFormatFilter] = useState('');
   const [mandatoryOnly, setMandatoryOnly] = useState(false);
   const [themes, setThemes] = useState<Theme[]>([]);
   const [error, setError] = useState('');
@@ -217,19 +240,21 @@ export default function Resources() {
         limit, offset, search: search || undefined, sort,
         theme: themeFilter || undefined,
         level: levelFilter || undefined,
+        format: formatFilter || undefined,
         mandatory: mandatoryOnly || undefined,
       }));
     } catch (e) { setError(errMsg(e)); } finally { setLoading(false); }
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [offset, sort, themeFilter, levelFilter, mandatoryOnly, search]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [offset, sort, themeFilter, levelFilter, formatFilter, mandatoryOnly, search]);
 
-  const hasActiveFilters = search.trim() !== '' || sort !== 'created' || themeFilter !== '' || levelFilter !== '' || mandatoryOnly;
+  const hasActiveFilters = search.trim() !== '' || sort !== 'created' || themeFilter !== '' || levelFilter !== '' || formatFilter !== '' || mandatoryOnly;
 
   function resetFilters() {
     setSearch('');
     setSort('created');
     setThemeFilter('');
     setLevelFilter('');
+    setFormatFilter('');
     setMandatoryOnly(false);
     setOffset(0);
   }
@@ -335,6 +360,20 @@ export default function Resources() {
                   >
                     <option value="">Tous les niveaux</option>
                     {LEVELS.map((k) => <option key={k} value={k}>{LEVEL_META[k].label}</option>)}
+                  </StitchSelect>
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-outline text-[18px]">category</span>
+                  <StitchSelect
+                    className="!w-auto !py-1.5 !rounded-full !bg-surface-container-low"
+                    value={formatFilter}
+                    onChange={(e) => { setFormatFilter(e.target.value); setOffset(0); }}
+                    aria-label="Filtrer par format"
+                  >
+                    <option value="">Tous les formats</option>
+                    <option value="pdf">Documents PDF</option>
+                    <option value="presentation">Présentations</option>
+                    <option value="link">Liens externes</option>
                   </StitchSelect>
                 </label>
                 <button

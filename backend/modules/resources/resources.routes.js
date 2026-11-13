@@ -14,12 +14,21 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}_${safe}`);
   },
 });
+// Fichiers acceptés : PDF (5 Mo) et présentations PowerPoint/ODP (20 Mo).
+const RESOURCE_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.oasis.opendocument.presentation',
+]);
+const RESOURCE_EXT = /\.(pdf|pptx?|odp)$/i;
+
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 Mo (cohérence Ville)
+  limits: { fileSize: 20 * 1024 * 1024 }, // limite haute ; le service applique 5 Mo aux PDF
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') cb(null, true);
-    else cb(new Error('Seuls les PDF sont acceptés'));
+    if (RESOURCE_MIME_TYPES.has(file.mimetype) || RESOURCE_EXT.test(file.originalname)) cb(null, true);
+    else cb(new Error('Formats acceptés : PDF, PowerPoint (.ppt/.pptx) ou présentation ODP'));
   },
 });
 

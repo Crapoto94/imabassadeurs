@@ -262,8 +262,9 @@ CREATE TABLE charte_ia.resources (
   id            SERIAL PRIMARY KEY,
   title         VARCHAR(300) NOT NULL,
   description   TEXT NOT NULL,             -- "pourquoi ce document est intéressant"
-  kind          VARCHAR(10) NOT NULL CHECK (kind IN ('pdf','link')),
-  file_path     TEXT,                       -- si kind = 'pdf' (upload via multer)
+  kind          VARCHAR(20) NOT NULL CHECK (kind IN ('pdf','link','presentation')),
+  file_path     TEXT,                       -- si kind = 'pdf' ou 'presentation' (upload via multer)
+  preview_path  TEXT,                       -- PDF de prévisualisation généré pour une présentation
   url           TEXT,                       -- si kind = 'link'
   proposed_by   INTEGER NOT NULL REFERENCES charte_ia.users(id),
   status        VARCHAR(10) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','published','rejected')),

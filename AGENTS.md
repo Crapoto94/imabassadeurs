@@ -42,7 +42,8 @@ backend/
   pg_db.js                  pool pg + runner de migrations + helpers db.all/get/run/query
   middleware/auth.js        requireAuth / requireInteract / requireIanimateur / requireAdmin
   modules/<feature>/        <feature>.routes.js + .service.js (+ .controller.js)
-  services/                 apm.js (AD/mail/IA), ia.js, notifications.js, scheduler.js
+  services/                 apm.js (AD/mail/IA), ia.js, notifications.js, scheduler.js,
+                            presentationConverter.js (PPTX→PDF, reamkit)
   utils/                    audit.js, errors.js, pagination.js, polymorphic.js
   migrations/NNN_*.sql      migrations versionnées
   uploads/                  fichiers PDF (ignorés par git)
@@ -102,6 +103,9 @@ frontend/src/
   d'Ivry sont joignables sur le réseau ; renseigner les clés pour les activer.
 - **pdfjs-dist** : le worker est importé via `pdfjs-dist/build/pdf.worker.min.mjs?url`
   (voir `PdfThumb.tsx`) ; il ajoute un chunk séparé (le bundle principal grossit).
+- **Présentations** : `reamkit` est ESM et coûteux en CPU ; la conversion tourne dans
+  `services/presentationConverter.worker.mjs` (worker + timeout), avec les polices
+  Liberation de `@formepdf/fonts-standard`. Ne pas la déplacer dans le thread principal.
 
 ## Vérifications avant commit
 
@@ -123,7 +127,8 @@ Contrôler aussi : diff sans corruption d'accents, pas de `.env`/secrets/`upload
 
 ## Tables principales
 
-`users`, `user_roles`, `comments`, `comment_likes`, `resources` (`level`, `edited_at`),
+`users`, `user_roles`, `comments`, `comment_likes`, `resources` (`kind` = pdf/link/presentation,
+`level`, `edited_at`, `preview_path`),
 `resource_ratings`, `experiments`, `experiment_participants`, `risks`, `risk_amendments`,
 `vote_sessions/options/responses`, `charter_principles`, `idea_links`,
 `idea_clusters(+/items)`, `themes`, `entity_themes`, `ai_prompts`,
