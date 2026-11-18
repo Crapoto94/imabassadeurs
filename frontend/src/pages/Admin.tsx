@@ -27,6 +27,71 @@ const SCOPE_LABELS: Record<string, string> = {
 
 type TabKey = 'users' | 'prompts' | 'themes' | 'backlog' | 'announcements' | 'settings' | 'audit';
 
+type UserSortKey = 'agent' | 'direction' | 'lastLogin';
+type UserSort = { key: UserSortKey; dir: 'asc' | 'desc' } | null;
+const NO_ROLE_FILTER = '__none__';
+
+const normaliser = (value: unknown) => String(value ?? '').trim();
+
+function comparerTexte(a: unknown, b: unknown) {
+  return normaliser(a).localeCompare(normaliser(b), 'fr', { sensitivity: 'base', numeric: true });
+}
+
+function comparerValeurNullable(a: unknown, b: unknown, sens: number) {
+  const av = normaliser(a);
+  const bv = normaliser(b);
+  if (!av && !bv) return 0;
+  if (!av) return 1;
+  if (!bv) return -1;
+  return comparerTexte(av, bv) * sens;
+}
+
+function comparerUtilisateurs(a: any, b: any, sort: NonNullable<UserSort>) {
+  const sens = sort.dir === 'asc' ? 1 : -1;
+
+  if (sort.key === 'lastLogin') {
+    const at = a.last_login_at ? new Date(a.last_login_at).getTime() : null;
+    const bt = b.last_login_at ? new Date(b.last_login_at).getTime() : null;
+    if (at === null && bt === null) return comparerTexte(a.display_name, b.display_name);
+    if (at === null) return 1;
+    if (bt === null) return -1;
+    return (at - bt) * sens || comparerTexte(a.display_name, b.display_name);
+  }
+
+  if (sort.key === 'direction') {
+    return comparerValeurNullable(a.direction, b.direction, sens)
+      || comparerValeurNullable(a.service, b.service, sens)
+      || comparerTexte(a.display_name, b.display_name);
+  }
+
+  return comparerTexte(a.display_name, b.display_name) * sens
+    || comparerTexte(a.ad_username, b.ad_username) * sens;
+}
+
+function SortableTh({ label, column, sort, onSort, className = '' }: {
+  label: string; column: UserSortKey; sort: UserSort; onSort: (key: UserSortKey) => void; className?: string;
+}) {
+  const active = sort?.key === column;
+  const ariaSort: 'none' | 'ascending' | 'descending' = !active ? 'none' : sort?.dir === 'asc' ? 'ascending' : 'descending';
+  return (
+    <th className={`py-3.5 px-4 font-semibold ${className}`} scope="col" aria-sort={ariaSort}>
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        className="inline-flex items-center gap-1 text-left hover:text-primary transition-colors"
+        title={`Trier par ${label.toLowerCase()}`}
+      >
+        <span>{label}</span>
+        {active && (
+          <span className="material-symbols-outlined text-[15px] leading-none" aria-hidden="true">
+            {sort?.dir === 'asc' ? 'arrow_downward' : 'arrow_upward'}
+          </span>
+        )}
+      </button>
+    </th>
+  );
+}
+
 export default function Admin() {
   const [tab, setTab] = useState<TabKey>('users');
   const tabs: { key: TabKey; icon: string; label: string }[] = [
@@ -113,6 +178,7 @@ function UsersTab() {
   const [users, setUsers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [sort, setSort] = useState<UserSort>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toDelete, setToDelete] = useState<any>(null);
@@ -132,9 +198,26 @@ function UsersTab() {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [search]);
 
   const filtered = useMemo(
-    () => users.filter((u) => !roleFilter || u.roles?.includes(roleFilter)),
+    () => users.filter((u) => {
+      if (!roleFilter) return true;
+      if (roleFilter === NO_ROLE_FILTER) return !u.roles?.length;
+      return u.roles?.includes(roleFilter);
+    }),
     [users, roleFilter]
   );
+
+  const visible = useMemo(
+    () => sort ? [...filtered].sort((a, b) => comparerUtilisateurs(a, b, sort)) : filtered,
+    [filtered, sort]
+  );
+
+  function cycleSort(key: UserSortKey) {
+    setSort((current) => {
+      if (!current || current.key !== key) return { key, dir: 'asc' };
+      if (current.dir === 'asc') return { key, dir: 'desc' };
+      return null;
+    });
+  }
 
   async function toggle(u: any, role: string, grant: boolean) {
     try {
@@ -208,6 +291,7 @@ function UsersTab() {
           <StitchSelect value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
             <option value="">Tous les rôles actifs</option>
             {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+            <option value={NO_ROLE_FILTER}>Sans rôle</option>
           </StitchSelect>
         </div>
       </SectionCard>
@@ -220,15 +304,15 @@ function UsersTab() {
             <table className="w-full text-left font-body text-body-sm">
               <thead className="bg-surface-container text-on-surface-variant font-headline text-label-md">
                 <tr>
-                  <th className="py-3.5 px-4 font-semibold" scope="col">Agent</th>
-                  <th className="py-3.5 px-4 font-semibold" scope="col">Direction &amp; Service</th>
+                  <SortableTh label="Agent" column="agent" sort={sort} onSort={cycleSort} />
+                  <SortableTh label="Direction & Service" column="direction" sort={sort} onSort={cycleSort} />
                   {ROLES.map((r) => <th key={r.key} className="py-3.5 px-4 font-semibold text-center" scope="col">{r.label}</th>)}
-                  <th className="py-3.5 px-4 font-semibold" scope="col">Dernière session</th>
+                  <SortableTh label="Dernière session" column="lastLogin" sort={sort} onSort={cycleSort} />
                   <th className="py-3.5 px-4 font-semibold" scope="col"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container text-on-surface">
-                {filtered.map((u) => (
+                {visible.map((u) => (
                   <tr key={u.id} className="hover:bg-surface-container-low/60 transition-colors">
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
@@ -285,7 +369,7 @@ function UsersTab() {
                     </td>
                   </tr>
                 ))}
-                {filtered.length === 0 && (
+                {visible.length === 0 && (
                   <tr><td colSpan={9} className="py-8 text-center text-outline">Aucun utilisateur pour ces critères.</td></tr>
                 )}
               </tbody>
@@ -297,7 +381,7 @@ function UsersTab() {
             <span className="material-symbols-outlined text-[18px] text-tertiary-container">verified_user</span>
             <span>Chaque bascule de rôle génère immédiatement une entrée d'audit nominative.</span>
           </div>
-          <span className="font-headline text-label-md">{filtered.length} agent(s) affiché(s)</span>
+          <span className="font-headline text-label-md">{visible.length} agent(s) affiché(s)</span>
         </div>
       </SectionCard>
 
