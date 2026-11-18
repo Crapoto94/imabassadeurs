@@ -12,6 +12,14 @@ export type Release = { version: string; date: string; type: 'minor' | 'patch'; 
 
 export const VERSIONS: Release[] = [
   {
+    version: '1.3.0', date: '2026-11-18', type: 'minor', title: 'Présentations et tri des comptes',
+    items: [
+      "Base documentaire : déposez une présentation PowerPoint (.pptx/.ppt) ou un lien de présentation ; un aperçu PDF est généré automatiquement et l'original reste téléchargeable.",
+      "Les présentations ODP sont acceptées et téléchargeables ; les formats PowerPoint bénéficient de l'aperçu et de la synthèse IA.",
+      "Admin › Utilisateurs : filtre « Sans rôle » et tri des colonnes Agent, Direction & Service et Dernière session (croissant, décroissant, puis ordre initial).",
+    ],
+  },
+  {
     version: '1.2.0', date: '2026-11-12', type: 'minor', title: 'Citer quelqu\'un avec @',
     items: [
       "Dans le Mur et dans les commentaires, tapez @ puis un nom pour citer un collègue : il est prévenu.",
