@@ -5,6 +5,21 @@ const { asyncHandler } = require('../../utils/errors');
 
 const router = express.Router();
 
+// Export lu par le DSI Hub (transport HTTP, bases séparées) : en-tête X-API-Key = BACKLOG_EXPORT_KEY. Désactivé (404) tant que la clé n'est pas renseignée.
+function cleExportOk(req, res) {
+  const attendu = process.env.BACKLOG_EXPORT_KEY || '';
+  if (!attendu) { res.status(404).json({ error: 'Route inconnue' }); return false; }
+  const a = Buffer.from(String(req.headers['x-api-key'] || '')); const b = Buffer.from(attendu);
+  if (a.length !== b.length || !require('crypto').timingSafeEqual(a, b)) { res.status(401).json({ error: 'Clé invalide' }); return false; }
+  return true;
+}
+
+// GET /api/v1/backlog/export — clé d'export, pas de session (lu par le DSI Hub).
+router.get('/export', asyncHandler(async (req, res) => {
+  if (!cleExportOk(req, res)) return;
+  res.json({ items: await service.exportContrat() });
+}));
+
 // POST /api/v1/backlog — tout utilisateur connecté déclare un bug ou propose une idée.
 router.post('/', requireAuth, asyncHandler(async (req, res) => {
   res.status(201).json(await service.create(req.user, req.body || {}));

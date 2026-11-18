@@ -72,4 +72,13 @@ async function remove(admin, id) {
   return { id, deleted: true };
 }
 
-module.exports = { create, list, setStatus, remove };
+// Toutes les demandes au format du contrat commun des applications de la DSI (lu par le DSI Hub : titre, état, motif, demandeur, traitement).
+async function exportContrat() {
+  const rows = await db.all(`${SELECT} ORDER BY b.created_at DESC LIMIT 5000`);
+  return rows.map((r) => ({
+    id: String(r.id), type: r.type, titre: r.title, description: r.description, statut: r.status, statut_brut: r.status, motif: r.reason || null,
+    demandeur: r.author_name || null, extra: r.app_version || null, created_at: r.created_at, traite_par: r.treated_by_name || null, traite_le: r.treated_at || null,
+  }));
+}
+
+module.exports = { create, list, setStatus, remove, exportContrat };
