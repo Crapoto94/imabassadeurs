@@ -2,7 +2,7 @@ const express = require('express');
 const { db, SCHEMA } = require('../../pg_db');
 const notifications = require('../../services/notifications');
 const { requireAuth } = require('../../middleware/auth');
-const { asyncHandler } = require('../../utils/errors');
+const { asyncHandler, ApiError } = require('../../utils/errors');
 
 const router = express.Router();
 const CATEGORIES = notifications.CATEGORIES;
@@ -23,6 +23,16 @@ router.put('/preferences', requireAuth, asyncHandler(async (req, res) => {
     [req.user.id, category, frequency]
   );
   res.json(await notifications.getPreferences(req.user.id));
+}));
+
+// Envoi d'un e-mail de test avec les nouveautés du jour (ne consomme pas les événements en attente).
+router.post('/notifications/test', requireAuth, asyncHandler(async (req, res) => {
+  try {
+    res.json(await notifications.sendTest(req.user));
+  } catch (err) {
+    throw new ApiError(err.status === 400 ? 400 : 502,
+      err.status === 400 ? err.message : `Envoi impossible : ${err.message}`);
+  }
 }));
 
 router.put('/profile', requireAuth, asyncHandler(async (req, res) => {
@@ -64,3 +74,4 @@ router.get('/avatar/:id', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 module.exports = router;
+

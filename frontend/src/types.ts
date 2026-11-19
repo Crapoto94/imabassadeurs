@@ -288,6 +288,15 @@ export interface AnnouncementAdmin extends Announcement {
 
 // ── Le Mur de l'IA ──
 export interface WallReaction { emoji: string; count: number; mine: boolean; names: string[] }
+export interface WallComment {
+  id: number;
+  body: string;
+  created_at: string;
+  edited_at: string | null;
+  author_id: number | null;
+  author_name: string | null;
+  author_avatar_v: number | null;
+}
 export interface WallPost {
   id: number;
   body: string;
@@ -298,4 +307,6 @@ export interface WallPost {
   author_avatar_v: number | null;
   quote: { id: number; author_name: string | null; excerpt: string; deleted: boolean } | null;
   reactions: WallReaction[];
+  comment_count: number;
+  comments: WallComment[];
 }

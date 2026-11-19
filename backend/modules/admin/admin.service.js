@@ -178,6 +178,19 @@ async function listAudit(query) {
   );
 }
 
+// Journal des e-mails envoyés (réservé aux admins, route protégée par requireAdmin).
+async function listMailLog(query) {
+  const { limit, offset } = pageParams(query, { defaultLimit: 100 });
+  return db.all(
+    `SELECT m.id, m.user_id, m.recipient, m.subject, m.kind, m.status, m.error,
+            m.duration_ms, m.created_at, u.display_name AS user_name
+       FROM ${SCHEMA}.mail_log m
+       LEFT JOIN ${SCHEMA}.users u ON u.id = m.user_id
+      ORDER BY m.created_at DESC LIMIT $1 OFFSET $2`,
+    [limit, offset]
+  );
+}
+
 async function listPrompts() {
   return db.all(`SELECT * FROM ${SCHEMA}.ai_prompts ORDER BY label ASC`);
 }
@@ -205,5 +218,5 @@ const listAiModels = () => apm.listerModelesIA();
 module.exports = {
   ROLES, getSettings, updateSettings, listUsers, grantRole, revokeRole, removeUser,
   getUserGamification, updateUserGamification,
-  listAudit, listPrompts, updatePrompt, testPrompt, listAiModels,
+  listAudit, listMailLog, listPrompts, updatePrompt, testPrompt, listAiModels,
 };

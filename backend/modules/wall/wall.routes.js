@@ -23,6 +23,19 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
   res.json(await service.remove(req.user, id(req.params.id)));
 }));
 
+// Commentaires imbriqués sous un message (et non de nouveaux messages).
+router.post('/:id/comments', requireAuth, asyncHandler(async (req, res) => {
+  res.json(await service.createComment(req.user, id(req.params.id), req.body || {}));
+}));
+
+router.put('/comments/:id', requireAuth, asyncHandler(async (req, res) => {
+  res.json(await service.updateComment(req.user, id(req.params.id), req.body || {}));
+}));
+
+router.delete('/comments/:id', requireAuth, asyncHandler(async (req, res) => {
+  res.json(await service.removeComment(req.user, id(req.params.id)));
+}));
+
 // Bascule d'une réaction (ajoute, ou retire si déjà posée).
 router.post('/:id/reactions', requireAuth, asyncHandler(async (req, res) => {
   res.json(await service.toggleReaction(req.user, id(req.params.id), req.body?.emoji));

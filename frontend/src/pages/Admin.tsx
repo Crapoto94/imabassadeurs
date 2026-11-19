@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
-  createTheme, deleteTheme, deleteUser, getAiModels, getAudit, getPrompts, getSettings, getThemes, getUserGamification,
+  createTheme, deleteTheme, deleteUser, getAiModels, getAudit, getMailLog, getPrompts, getSettings, getThemes, getUserGamification,
   getUsers, grantRole, revokeRole, testPrompt, updatePrompt, updateSettings, updateTheme, updateUserGamification,
 } from '../api/endpoints';
 import { errMsg } from '../api/client';
@@ -25,7 +25,7 @@ const SCOPE_LABELS: Record<string, string> = {
   risk: 'Risques',
 };
 
-type TabKey = 'users' | 'prompts' | 'themes' | 'backlog' | 'announcements' | 'settings' | 'audit';
+type TabKey = 'users' | 'prompts' | 'themes' | 'backlog' | 'announcements' | 'settings' | 'audit' | 'mails';
 
 type UserSortKey = 'agent' | 'direction' | 'lastLogin';
 type UserSort = { key: UserSortKey; dir: 'asc' | 'desc' } | null;
@@ -102,6 +102,7 @@ export default function Admin() {
     { key: 'announcements', icon: 'campaign', label: 'Annonces' },
     { key: 'settings', icon: 'tune', label: 'Paramètres Généraux & Footer' },
     { key: 'audit', icon: 'receipt_long', label: "Journal d'Audit" },
+    { key: 'mails', icon: 'outgoing_mail', label: 'Mails envoyés' },
   ];
 
   return (
@@ -166,6 +167,7 @@ export default function Admin() {
         {tab === 'announcements' && <AdminAnnouncements />}
         {tab === 'settings' && <SettingsTab />}
         {tab === 'audit' && <AuditTab />}
+        {tab === 'mails' && <MailLogTab />}
       </div>
     </div>
   );
@@ -720,6 +722,70 @@ function AuditTab() {
   );
 }
 
+
+// ── Onglet Mails envoyés (journal mail_log, admin uniquement) ──
+const MAIL_KINDS: Record<string, string> = {
+  instant: 'Instantané', daily: 'Quotidien', weekly: 'Hebdomadaire', test: 'Test',
+};
+
+function MailLogTab() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    getMailLog({ limit: 100 }).then(setRows).catch((e) => setError(errMsg(e))).finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <SectionCard className="p-6">
+      <h2 className="font-headline text-headline-md text-primary font-bold mb-1">Mails envoyés</h2>
+      <p className="font-body text-body-sm text-on-surface-variant mb-5">
+        100 derniers e-mails traités par l'application (résumés, alertes instantanées et tests), avec leur statut d'envoi.
+      </p>
+      {error && <StitchAlert kind="error">{error}</StitchAlert>}
+      {loading ? <StitchSpinner /> : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left font-body text-body-sm">
+            <thead className="bg-surface-container text-on-surface-variant font-headline text-label-md">
+              <tr>
+                <th className="px-3 py-2.5 font-semibold">Date</th>
+                <th className="px-3 py-2.5 font-semibold">Destinataire</th>
+                <th className="px-3 py-2.5 font-semibold">Type</th>
+                <th className="px-3 py-2.5 font-semibold">Sujet</th>
+                <th className="px-3 py-2.5 font-semibold">Statut</th>
+                <th className="px-3 py-2.5 font-semibold">Détail</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-container">
+              {rows.map((r) => (
+                <tr key={r.id} className="hover:bg-surface-container-low/60 transition-colors align-top">
+                  <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">{new Date(r.created_at).toLocaleString('fr-FR')}</td>
+                  <td className="px-3 py-2">
+                    <div className="text-on-surface">{r.user_name || '—'}</div>
+                    <div className="text-on-surface-variant">{r.recipient}</div>
+                  </td>
+                  <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">{MAIL_KINDS[r.kind] || r.kind}</td>
+                  <td className="px-3 py-2 text-on-surface-variant">{r.subject}</td>
+                  <td className="px-3 py-2">
+                    <span className={`px-2 py-0.5 rounded-full font-headline text-label-sm ${r.status === 'sent' ? 'bg-tertiary-fixed/60 text-on-tertiary-fixed-variant' : 'bg-error-container text-on-error-container'}`}>
+                      {r.status === 'sent' ? 'Envoyé' : 'Échec'}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-on-surface-variant">
+                    {r.status === 'sent' ? `${r.duration_ms ?? '—'} ms` : (r.error || '—')}
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr><td colSpan={6} className="py-8 text-center text-outline">Aucun e-mail envoyé pour l'instant.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
 
 // ── Onglet Thèmes ──
 const THEME_SCOPES: ThemeScope[] = ['resource', 'experiment', 'risk'];

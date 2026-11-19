@@ -31,6 +31,36 @@ async function notifier(userIds, category, entityType, entityId, message) {
   }
 }
 
+// ── Journal des e-mails envoyés (table mail_log, lisible par les admins) ──
+const MAX_LOG_BODY = 20000;
+
+async function logMail({ userId, to, subject, kind, content, status, error, durationMs }) {
+  try {
+    await db.run(
+      `INSERT INTO ${SCHEMA}.mail_log (user_id, recipient, subject, kind, body, status, error, duration_ms)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [userId || null, String(to), String(subject).slice(0, 300), kind,
+        String(content || '').slice(0, MAX_LOG_BODY), status, error || null, durationMs ?? null]
+    );
+  } catch (e) {
+    // Le journal ne doit jamais empêcher un envoi.
+    console.error('[NOTIF] journalisation du mail impossible :', e.message);
+  }
+}
+
+// Envoi tracé : une ligne de journal est écrite, que l'APM accepte ou refuse le message.
+async function sendMail({ userId, to, subject, content, kind, footer }) {
+  const started = Date.now();
+  try {
+    const result = await apm.envoyerMail({ to, subject, content, ...footer });
+    await logMail({ userId, to, subject, kind, content, status: 'sent', durationMs: Date.now() - started });
+    return result;
+  } catch (err) {
+    await logMail({ userId, to, subject, kind, content, status: 'error', error: err.message, durationMs: Date.now() - started });
+    throw err;
+  }
+}
+
 // Destinataires d'une activité de module : tous les utilisateurs sauf l'auteur,
 // avec une préférence autre que « jamais » (défaut : résumé quotidien).
 async function destinatairesCategorie(category, excludeUserId) {
@@ -71,11 +101,11 @@ async function sendInstant() {
   for (const ev of events) {
     if (!ev.email) continue;
     try {
-      await apm.envoyerMail({
-        to: ev.email,
+      await sendMail({
+        userId: ev.user_id, to: ev.email, kind: 'instant',
         subject: 'IAmbassadeurs — nouvelle activité',
         content: `<p>Bonjour ${ev.display_name},</p><p>${ev.message}</p>`,
-        ...footer,
+        footer,
       });
       await db.run(`UPDATE ${SCHEMA}.notification_events SET sent_at = now() WHERE id = $1`, [ev.id]);
       sent++;
@@ -128,11 +158,11 @@ async function sendDigests(period) {
       .map((n) => `<a href="${appUrl}/digest/rate/${token}?note=${n}">${n}★</a>`)
       .join(' ');
     try {
-      await apm.envoyerMail({
-        to: row.email,
+      await sendMail({
+        userId: row.user_id, to: row.email, kind: period,
         subject: `IAmbassadeurs — votre résumé ${period === 'weekly' ? 'hebdomadaire' : 'quotidien'}`,
         content: `${html}<hr/><p>Qualité de ce résumé : ${ratingLinks}</p>`,
-        ...footer,
+        footer,
       });
       await db.run(
         `UPDATE ${SCHEMA}.notification_events SET sent_at = now() WHERE id = ANY($1::int[])`,
@@ -144,6 +174,72 @@ async function sendDigests(period) {
     }
   }
   return sent;
+}
+
+// ── Test d'envoi : récapitulatif des nouveautés du jour (bouton « Mes notifications ») ──
+const TODAY = "(created_at AT TIME ZONE 'Europe/Paris')::date = (now() AT TIME ZONE 'Europe/Paris')::date";
+const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// Texte lisible d'un corps contenant des tags de mention @[Nom](id).
+const plain = (t) => String(t || '').replace(/@\[([^\]\n]{1,80})\]\((\d+|all)\)/g, '$1').replace(/\s+/g, ' ').trim();
+
+// Activité du jour : événements personnels non résumés + contenus publics créés aujourd'hui.
+async function collectToday(user) {
+  const [events, resources, experiments, risks, posts, comments] = await Promise.all([
+    db.all(`SELECT message FROM ${SCHEMA}.notification_events
+             WHERE user_id = $1 AND sent_at IS NULL AND ${TODAY} ORDER BY created_at`, [user.id]),
+    db.all(`SELECT title FROM ${SCHEMA}.resources
+             WHERE status = 'published' AND COALESCE(reviewed_at, created_at)::date = current_date ORDER BY id DESC`),
+    db.all(`SELECT title FROM ${SCHEMA}.experiments WHERE ${TODAY} ORDER BY id DESC`),
+    db.all(`SELECT title FROM ${SCHEMA}.risks WHERE ${TODAY} ORDER BY id DESC`),
+    db.all(`SELECT p.body, u.display_name FROM ${SCHEMA}.wall_posts p
+              LEFT JOIN ${SCHEMA}.users u ON u.id = p.author_id
+             WHERE p.deleted_at IS NULL AND (p.created_at AT TIME ZONE 'Europe/Paris')::date = (now() AT TIME ZONE 'Europe/Paris')::date
+               AND p.author_id IS DISTINCT FROM $1 ORDER BY p.id DESC LIMIT 10`, [user.id]),
+    db.all(`SELECT c.body, u.display_name FROM ${SCHEMA}.wall_comments c
+              LEFT JOIN ${SCHEMA}.users u ON u.id = c.author_id
+             WHERE c.deleted_at IS NULL AND (c.created_at AT TIME ZONE 'Europe/Paris')::date = (now() AT TIME ZONE 'Europe/Paris')::date
+               AND c.author_id IS DISTINCT FROM $1 ORDER BY c.id DESC LIMIT 10`, [user.id]),
+  ]);
+  return { events, resources, experiments, risks, posts, comments };
+}
+
+function todayHtml(user, data) {
+  const prenom = (user.display_name || user.ad_username || '').split(' ')[0];
+  const appUrl = process.env.APP_URL || '';
+  const section = (title, items) => (items.length
+    ? `<h3>${title}</h3><ul>${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`
+    : '');
+  const total = Object.values(data).reduce((n, list) => n + list.length, 0);
+  const novelties = total
+    ? [
+        section('Votre activité non encore résumée', data.events.map((e) => e.message)),
+        section('Nouvelles ressources publiées', data.resources.map((r) => r.title)),
+        section('Nouvelles expérimentations', data.experiments.map((e) => e.title)),
+        section('Nouveaux risques', data.risks.map((r) => r.title)),
+        section('Le Mur — nouveaux messages', data.posts.map((p) => `${p.display_name || 'Un membre'} : ${plain(p.body).slice(0, 160)}`)),
+        section('Le Mur — nouveaux commentaires', data.comments.map((c) => `${c.display_name || 'Un membre'} : ${plain(c.body).slice(0, 160)}`)),
+      ].join('')
+    : "<p>Aucune nouveauté enregistrée aujourd'hui.</p>";
+  return `<p>Bonjour ${esc(prenom)},</p>
+<p>Voici les nouveautés du jour sur IAmbassadeurs. <strong>Ce message est un test</strong>, déclenché depuis vos préférences de notification.</p>
+${novelties}
+${appUrl ? `<p><a href="${esc(appUrl)}">Ouvrir IAmbassadeurs</a></p>` : ''}
+<p>Si vous recevez ce message, l'envoi d'e-mails fonctionne : vos résumés partiront à la fréquence choisie.</p>`;
+}
+
+// Envoie à l'utilisateur connecté un e-mail de test avec l'activité du jour (sans marquer les événements comme envoyés).
+async function sendTest(user) {
+  if (!user.email) throw Object.assign(new Error("Aucune adresse e-mail n'est associée à votre compte"), { status: 400 });
+  const data = await collectToday(user);
+  await sendMail({
+    userId: user.id, to: user.email, kind: 'test',
+    subject: 'IAmbassadeurs — nouveautés du jour (test)',
+    content: todayHtml(user, data), footer: await getFooter(),
+  });
+  return {
+    sent: true, to: user.email,
+    counts: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v.length])),
+  };
 }
 
 async function rateDigest(token, note) {
@@ -160,5 +256,5 @@ async function rateDigest(token, note) {
 
 module.exports = {
   CATEGORIES, notifier, destinatairesCategorie, getPreferences,
-  sendInstant, sendDigests, rateDigest, getFooter,
+  sendInstant, sendDigests, sendTest, rateDigest, getFooter,
 };

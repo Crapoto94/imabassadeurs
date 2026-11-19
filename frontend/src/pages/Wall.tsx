@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createWallPost, deleteWallPost, getWall, reactWallPost, updateWallPost } from '../api/endpoints';
+import {
+  createWallComment, createWallPost, deleteWallComment, deleteWallPost, getWall,
+  reactWallPost, updateWallComment, updateWallPost,
+} from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
-import { Avatar, EditedAt, GhostButton, PageHeader, PrimaryButton, SectionCard, StitchAlert, StitchEmpty, StitchSpinner, inputCls, timeAgo, useToast } from '../components/stitch';
+import { Avatar, EditedAt, GhostButton, Modal, PageHeader, PrimaryButton, SectionCard, StitchAlert, StitchEmpty, StitchSpinner, inputCls, timeAgo, useToast } from '../components/stitch';
 import { MentionField, MentionText, decodeMentions, encodeMentions, plainMentions } from '../components/Mentions';
 import type { Mention } from '../components/Mentions';
-import type { WallPost } from '../types';
+import type { WallComment, WallPost } from '../types';
 
 const MAX = 2000;
 const REFRESH_MS = 30_000;
@@ -37,9 +40,9 @@ function EmojiGrid({ onPick, items = EMOJIS, cols = 8 }: { onPick: (e: string) =
   );
 }
 
-// Zone de saisie : texte, smileys, aperçu de la citation.
-function Composer({ quote, onClearQuote, initial = '', submitLabel = 'Publier', onSubmit, onCancel, autoFocus }: {
-  quote?: WallPost['quote'] | null; onClearQuote?: () => void; initial?: string; submitLabel?: string;
+// Zone de saisie : texte, smileys.
+function Composer({ initial = '', submitLabel = 'Publier', placeholder = "Exprimez-vous : une question, un avis… Tapez @ pour citer quelqu'un.", rows = 3, onSubmit, onCancel, autoFocus }: {
+  initial?: string; submitLabel?: string; placeholder?: string; rows?: number;
   onSubmit: (text: string) => Promise<void>; onCancel?: () => void; autoFocus?: boolean;
 }) {
   const decoded = useRef(decodeMentions(initial));
@@ -69,29 +72,18 @@ function Composer({ quote, onClearQuote, initial = '', submitLabel = 'Publier', 
 
   return (
     <div className="space-y-2">
-      {quote && (
-        <div className="flex items-start gap-2 rounded-lg border-l-4 border-secondary bg-surface-container-low px-3 py-2">
-          <div className="min-w-0 flex-1 font-body text-body-sm text-on-surface-variant">
-            <span className="font-headline text-label-sm text-secondary">En réponse à {quote.author_name || 'un membre'}</span>
-            <p className="truncate">{quote.excerpt}</p>
-          </div>
-          <button type="button" aria-label="Retirer la citation" onClick={onClearQuote} className="text-outline hover:text-on-surface">
-            <span className="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        </div>
-      )}
       {err && <StitchAlert kind="error">{err}</StitchAlert>}
       <MentionField
         multiline textareaRef={area} mentionsRef={mentionsRef} className={inputCls}
-        rows={3} maxLength={MAX} value={text} autoFocus={autoFocus}
-        placeholder="Exprimez-vous : une question, un avis… Tapez @ pour citer quelqu'un."
+        rows={rows} maxLength={MAX} value={text} autoFocus={autoFocus}
+        placeholder={placeholder}
         onChange={setText}
         onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } }}
       />
       <div className="relative flex flex-wrap items-center gap-2">
         <GhostButton icon="add_reaction" onClick={() => setPicker((v) => !v)}>Smiley</GhostButton>
         {picker && <div className="absolute left-0 bottom-full mb-2 z-20 w-[19rem]"><EmojiGrid onPick={insert} /></div>}
-        <span className="font-body text-body-sm text-outline">{text.length} / {MAX} · Ctrl+Entrée pour publier</span>
+        <span className="font-body text-body-sm text-outline">{text.length} / {MAX} · Ctrl+Entrée pour envoyer</span>
         <div className="ml-auto flex gap-2">
           {onCancel && <GhostButton onClick={onCancel}>Annuler</GhostButton>}
           <PrimaryButton icon="send" onClick={submit} disabled={busy || !text.trim()}>{submitLabel}</PrimaryButton>
@@ -101,13 +93,72 @@ function Composer({ quote, onClearQuote, initial = '', submitLabel = 'Publier', 
   );
 }
 
-function Post({ post, quickReactions, meId, canModerate, onChange, onRemoved, onQuote, onError }: {
+// Un commentaire, présenté « à la Facebook » sous son message.
+function Comment({ comment, meId, canModerate, onChange, onError }: {
+  comment: WallComment; meId: number; canModerate: boolean;
+  onChange: (p: WallPost) => void; onError: (m: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const mine = comment.author_id === meId;
+
+  const remove = async () => {
+    if (!window.confirm(mine ? 'Supprimer ce commentaire ?' : 'Supprimer ce commentaire (modération) ?')) return;
+    try { onChange(await deleteWallComment(comment.id)); } catch (e) { onError(errMsg(e)); }
+  };
+
+  return (
+    <div className="flex items-start gap-2">
+      <Avatar name={comment.author_name} size={30} userId={comment.author_id} v={comment.author_avatar_v} />
+      <div className="min-w-0 flex-1">
+        {editing ? (
+          <Composer
+            autoFocus rows={2} initial={comment.body} submitLabel="Enregistrer" placeholder="Modifier le commentaire…"
+            onCancel={() => setEditing(false)}
+            onSubmit={async (t) => { onChange(await updateWallComment(comment.id, t)); setEditing(false); }}
+          />
+        ) : (
+          <div className="rounded-2xl bg-surface-container-low px-3 py-1.5">
+            <span className="font-headline text-label-sm text-on-surface">{comment.author_name || 'Ancien membre'}</span>
+            <p className="font-body text-body-sm text-on-surface whitespace-pre-wrap break-words"><MentionText text={comment.body} /></p>
+          </div>
+        )}
+        {!editing && (
+          <div className="mt-0.5 flex flex-wrap items-center gap-2 pl-2 font-body text-body-sm text-outline">
+            <time dateTime={comment.created_at} title={new Date(comment.created_at).toLocaleString('fr-FR')}>{timeAgo(comment.created_at)}</time>
+            <EditedAt editedAt={comment.edited_at} />
+            {(mine || canModerate) && (
+              <button
+                type="button" onClick={() => setEditing(true)}
+                title={mine ? 'Modifier mon commentaire' : 'Modifier ce commentaire (modération)'}
+                className="inline-flex items-center gap-0.5 font-headline text-label-sm hover:text-on-surface"
+              >
+                <span className="material-symbols-outlined text-[16px]">edit</span>{mine ? 'Modifier' : 'Modifier (modération)'}
+              </button>
+            )}
+            {(mine || canModerate) && (
+              <button
+                type="button" onClick={remove}
+                title={mine ? 'Supprimer mon commentaire' : 'Supprimer ce commentaire (modération)'}
+                className="inline-flex items-center gap-0.5 font-headline text-label-sm hover:text-error"
+              >
+                <span className="material-symbols-outlined text-[16px]">delete</span>{mine ? 'Supprimer' : 'Supprimer (modération)'}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Post({ post, quickReactions, meId, canModerate, onChange, onRemoved, onComment, onError }: {
   post: WallPost; quickReactions: string[]; meId: number; canModerate: boolean;
-  onChange: (p: WallPost) => void; onRemoved: (id: number) => void; onQuote: (p: WallPost) => void; onError: (m: string) => void;
+  onChange: (p: WallPost) => void; onRemoved: (id: number) => void; onComment: (p: WallPost) => void; onError: (m: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [picker, setPicker] = useState(false);
   const mine = post.author_id === meId;
+  const hidden = post.comment_count - post.comments.length;
 
   const react = async (emoji: string) => {
     setPicker(false);
@@ -166,8 +217,9 @@ function Post({ post, quickReactions, meId, canModerate, onChange, onRemoved, on
             </button>
             {picker && <div className="absolute left-0 top-full mt-1 z-20 w-[15rem]"><EmojiGrid items={quickReactions} cols={6} onPick={react} /></div>}
             <span className="ml-auto flex items-center gap-0.5 text-outline">
-              <button type="button" title="Citer" aria-label="Citer ce message" onClick={() => onQuote(post)} className="p-1 rounded-full hover:bg-surface-container hover:text-on-surface">
-                <span className="material-symbols-outlined text-[18px]">format_quote</span>
+              <button type="button" title="Commenter" aria-label="Commenter ce message" onClick={() => onComment(post)} className="flex items-center gap-1 p-1 rounded-full hover:bg-surface-container hover:text-on-surface">
+                <span className="material-symbols-outlined text-[18px]">comment</span>
+                {post.comment_count > 0 && <span className="font-headline text-label-sm">{post.comment_count}</span>}
               </button>
               {mine && !editing && (
                 <button type="button" title="Modifier" aria-label="Modifier" onClick={() => setEditing(true)} className="p-1 rounded-full hover:bg-surface-container hover:text-on-surface">
@@ -181,23 +233,42 @@ function Post({ post, quickReactions, meId, canModerate, onChange, onRemoved, on
               )}
             </span>
           </div>
+
+          {/* Fil de commentaires, sous le message */}
+          {post.comment_count > 0 && (
+            <div className="mt-2.5 space-y-2.5 border-t border-surface-container pt-2.5">
+              {hidden > 0 && (
+                <p className="font-body text-body-sm text-outline">{hidden} commentaire{hidden > 1 ? 's' : ''} plus ancien{hidden > 1 ? 's' : ''} non affiché{hidden > 1 ? 's' : ''}</p>
+              )}
+              {post.comments.map((c) => (
+                <Comment key={c.id} comment={c} meId={meId} canModerate={canModerate} onChange={onChange} onError={onError} />
+              ))}
+            </div>
+          )}
+          <button
+            type="button" onClick={() => onComment(post)}
+            className="mt-2.5 flex w-full items-center gap-2 rounded-full bg-surface-container-low px-3 py-1.5 text-left font-body text-body-sm text-outline hover:bg-surface-container"
+          >
+            <span className="material-symbols-outlined text-[18px]">comment</span>
+            Écrire un commentaire…
+          </button>
         </div>
       </div>
     </article>
   );
 }
 
-// Le Mur de l'IA : fil de discussion unique, ouvert à tous les utilisateurs connectés.
+// Le Mur de l'IA : fil d'échange libre, commentaires imbriqués sous chaque message.
 export default function Wall() {
   const { user, isIanimateur } = useAuth();
   const { show, Toast } = useToast();
   const [posts, setPosts] = useState<WallPost[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [quickReactions, setQuickReactions] = useState<string[]>([]);
-  const [quote, setQuote] = useState<WallPost | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const composerRef = useRef<HTMLDivElement>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [commentTarget, setCommentTarget] = useState<WallPost | null>(null);
 
   // Charge la première page ; au rafraîchissement, fusionne sans perdre les pages déjà dépliées.
   const refresh = useCallback(async () => {
@@ -231,30 +302,41 @@ export default function Wall() {
   };
 
   const replace = (p: WallPost) => setPosts((cur) => (cur || []).map((x) => (x.id === p.id ? p : x)));
-  const startQuote = (p: WallPost) => { setQuote(p); composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
 
+  // Message publié depuis la modale (et non depuis un commentaire).
   const publish = async (text: string) => {
-    const p = await createWallPost(text, quote?.id);
+    const p = await createWallPost(text);
     setPosts((cur) => [p, ...(cur || [])]);
-    setQuote(null);
+    setComposerOpen(false);
     show('Message publié');
+  };
+
+  // Commentaire ajouté depuis la modale : il reste sous son message.
+  const comment = async (text: string) => {
+    if (!commentTarget) return;
+    replace(await createWallComment(commentTarget.id, text));
+    setCommentTarget(null);
+    show('Commentaire publié');
   };
 
   return (
     <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-8 space-y-5">
       <PageHeader
         title="Le Mur de l'IA"
-        subtitle="Un espace libre pour échanger sur l'IA : une idée, une question, une trouvaille. Citez un message, réagissez avec un smiley."
+        subtitle="Un espace libre pour échanger sur l'IA : une idée, une question, une trouvaille. Commentez les messages et réagissez avec un smiley."
       />
-      <div ref={composerRef}>
-        <SectionCard className="p-4">
-          <Composer
-            quote={quote ? { id: quote.id, author_name: quote.author_name, excerpt: plainMentions(quote.body).slice(0, 200), deleted: false } : null}
-            onClearQuote={() => setQuote(null)}
-            onSubmit={publish}
-          />
-        </SectionCard>
-      </div>
+      <SectionCard className="p-3">
+        <div className="flex items-center gap-3">
+          <Avatar name={user?.display_name} size={40} userId={user?.id} v={user?.avatar_v} />
+          <button
+            type="button" onClick={() => setComposerOpen(true)}
+            className="flex-1 rounded-full bg-surface-container-low px-4 py-2.5 text-left font-body text-body-md text-outline hover:bg-surface-container"
+          >
+            Quoi de neuf ? Lancez la conversation…
+          </button>
+          <PrimaryButton icon="edit" onClick={() => setComposerOpen(true)} className="hidden sm:inline-flex">Publier</PrimaryButton>
+        </div>
+      </SectionCard>
       {error && <StitchAlert kind="error">{error}</StitchAlert>}
       {!posts ? (
         <div className="flex justify-center py-10"><StitchSpinner /></div>
@@ -266,7 +348,7 @@ export default function Wall() {
             <Post
               key={p.id} post={p} quickReactions={quickReactions} meId={user?.id ?? 0} canModerate={isIanimateur}
               onChange={replace} onRemoved={(id) => setPosts((cur) => (cur || []).filter((x) => x.id !== id))}
-              onQuote={startQuote} onError={setError}
+              onComment={setCommentTarget} onError={setError}
             />
           ))}
           {hasMore && (
@@ -276,6 +358,25 @@ export default function Wall() {
           )}
         </div>
       )}
+
+      <Modal open={composerOpen} onClose={() => setComposerOpen(false)} title="Nouveau message" icon="forum">
+        <Composer autoFocus submitLabel="Publier" onCancel={() => setComposerOpen(false)} onSubmit={publish} />
+      </Modal>
+
+      <Modal open={!!commentTarget} onClose={() => setCommentTarget(null)} title="Commenter" icon="comment">
+        {commentTarget && (
+          <div className="space-y-3">
+            <div className="rounded-xl bg-surface-container-low px-3 py-2">
+              <span className="font-headline text-label-sm text-secondary">{commentTarget.author_name || 'Un membre'}</span>
+              <p className="font-body text-body-sm text-on-surface-variant line-clamp-3">{plainMentions(commentTarget.body)}</p>
+            </div>
+            <Composer
+              autoFocus rows={2} submitLabel="Commenter" placeholder="Votre commentaire…"
+              onCancel={() => setCommentTarget(null)} onSubmit={comment}
+            />
+          </div>
+        )}
+      </Modal>
       {Toast}
     </div>
   );

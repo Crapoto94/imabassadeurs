@@ -18,6 +18,9 @@ router.delete('/users/:id', asyncHandler(async (req, res) => res.json(await serv
 
 router.get('/audit', asyncHandler(async (req, res) => res.json(await service.listAudit(req.query))));
 
+// Journal des e-mails envoyés : le routeur est déjà protégé par requireAuth + requireAdmin.
+router.get('/mail-log', asyncHandler(async (req, res) => res.json(await service.listMailLog(req.query))));
+
 router.get('/prompts', asyncHandler(async (req, res) => res.json(await service.listPrompts())));
 router.put('/prompts/:actionKey', asyncHandler(async (req, res) => res.json(await service.updatePrompt(req.user, req.params.actionKey, req.body))));
 router.post('/prompts/:actionKey/test', asyncHandler(async (req, res) => {

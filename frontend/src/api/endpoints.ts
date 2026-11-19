@@ -116,6 +116,10 @@ export const getAccount = () => api.get<{ user: User; preferences: Record<string
 export const setPreference = (category: string, frequency: string) =>
   api.put('/api/v1/account/preferences', { category, frequency }).then((r) => r.data);
 
+// E-mail de test contenant les nouveautés du jour (réservé à l'utilisateur connecté).
+export const sendNotificationTest = () =>
+  api.post<{ sent: boolean; to: string; counts: Record<string, number> }>('/api/v1/account/notifications/test').then((r) => r.data);
+
 // ── Gamification ──
 export const getGamificationMe = () => api.get<GamificationSummary>('/api/v1/gamification/me').then((r) => r.data);
 
@@ -130,6 +134,8 @@ export const getUserGamification = (userId: number) => api.get<any>(`/api/v1/adm
 export const updateUserGamification = (userId: number, data: Record<string, unknown>) =>
   api.patch(`/api/v1/admin/users/${userId}/gamification`, data).then((r) => r.data);
 export const getAudit = (params?: Record<string, unknown>) => api.get<any[]>('/api/v1/admin/audit', { params }).then((r) => r.data);
+// Journal des e-mails envoyés (admin uniquement).
+export const getMailLog = (params?: Record<string, unknown>) => api.get<any[]>('/api/v1/admin/mail-log', { params }).then((r) => r.data);
 export const getPrompts = () => api.get<any[]>('/api/v1/admin/prompts').then((r) => r.data);
 export const updatePrompt = (actionKey: string, data: Record<string, unknown>) =>
   api.put(`/api/v1/admin/prompts/${actionKey}`, data).then((r) => r.data);
@@ -189,6 +195,14 @@ export const updateWallPost = (id: number, body: string) => api.put<WallPost>(`/
 export const deleteWallPost = (id: number) => api.delete(`/api/v1/wall/${id}`).then((r) => r.data);
 export const reactWallPost = (id: number, emoji: string) =>
   api.post<WallPost>(`/api/v1/wall/${id}/reactions`, { emoji }).then((r) => r.data);
+
+// Commentaires rattachés à un message : renvoient le message à jour.
+export const createWallComment = (postId: number, body: string) =>
+  api.post<WallPost>(`/api/v1/wall/${postId}/comments`, { body }).then((r) => r.data);
+export const updateWallComment = (id: number, body: string) =>
+  api.put<WallPost>(`/api/v1/wall/comments/${id}`, { body }).then((r) => r.data);
+export const deleteWallComment = (id: number) =>
+  api.delete<WallPost>(`/api/v1/wall/comments/${id}`).then((r) => r.data);
 
 // ── Pastilles « nouveau » du menu ──
 export type BadgeCounts = Partial<Record<'ressources' | 'experimentations' | 'risques' | 'votes' | 'mur' | 'admin', number>>;

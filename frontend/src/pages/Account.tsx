@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { getAccount, removeAvatar, saveBio, setAvatar, setPreference } from '../api/endpoints';
+import { getAccount, removeAvatar, saveBio, sendNotificationTest, setAvatar, setPreference } from '../api/endpoints';
 import { useAuth } from '../hooks/useAuth';
 import { errMsg } from '../api/client';
 import AvatarCropper from '../components/AvatarCropper';
 import ProgressionPanel from '../components/ProgressionPanel';
 import { useGamification } from '../hooks/useGamification';
 import {
-  Avatar, RoleBadge, SectionCard, StitchAlert, StitchSelect, StitchTextarea, StitchSpinner, useToast,
+  Avatar, PrimaryButton, RoleBadge, SectionCard, StitchAlert, StitchSelect, StitchTextarea, StitchSpinner, useToast,
 } from '../components/stitch';
 
 const CATEGORIES: { key: string; label: string }[] = [
@@ -34,6 +34,7 @@ export default function Account() {
   const [bio, setBio] = useState('');
   const [data, setData] = useState<{ user: any; preferences: Record<string, string> } | null>(null);
   const [error, setError] = useState('');
+  const [testing, setTesting] = useState(false);
 
   async function load() { try { const d = await getAccount(); setData(d); setBio(d.user.bio || ''); } catch (e) { setError(errMsg(e)); } }
   useEffect(() => { load(); }, []);
@@ -58,6 +59,15 @@ export default function Account() {
       setData((d) => d && { ...d, user: { ...d.user, bio: r.bio } });
       show('Petit mot enregistré');
     } catch (e) { show(errMsg(e)); } finally { setBusy(false); }
+  }
+
+  // Envoie un e-mail de test avec les nouveautés du jour à l'adresse du compte.
+  async function sendTest() {
+    setTesting(true);
+    try {
+      const r = await sendNotificationTest();
+      show(`E-mail de test envoyé à ${r.to}`);
+    } catch (e) { setError(errMsg(e, "L'e-mail de test n'a pas pu être envoyé")); } finally { setTesting(false); }
   }
   async function dropAvatar() {
     setBusy(true);
@@ -182,6 +192,16 @@ export default function Account() {
                   </StitchSelect>
                 </div>
               ))}
+            </div>
+            <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-surface-container pt-4">
+              <PrimaryButton icon="send" onClick={sendTest} disabled={testing || !data.user.email}>
+                {testing ? 'Envoi…' : "M'envoyer un e-mail de test"}
+              </PrimaryButton>
+              <p className="font-body text-body-sm text-on-surface-variant">
+                {data.user.email
+                  ? `Envoie à ${data.user.email} un récapitulatif des nouveautés du jour (sans consommer vos notifications en attente).`
+                  : "Aucune adresse e-mail n'est associée à votre compte : l'envoi est impossible."}
+              </p>
             </div>
           </SectionCard>
         </div>
