@@ -12,6 +12,13 @@ export type Release = { version: string; date: string; type: 'minor' | 'patch'; 
 
 export const VERSIONS: Release[] = [
   {
+    version: '1.3.1', date: '2026-11-19', type: 'patch', title: 'Notifications des nouvelles ressources',
+    items: [
+      "Recevez une notification (selon vos préférences) lorsqu'une nouvelle ressource est publiée dans la base documentaire.",
+      "Le module Ressources respecte désormais les fréquences « à chaque nouveauté », « résumé quotidien/hebdomadaire » et « jamais ».",
+    ],
+  },
+  {
     version: '1.3.0', date: '2026-11-18', type: 'minor', title: 'Présentations et tri des comptes',
     items: [
       "Base documentaire : déposez une présentation PowerPoint (.pptx/.ppt) ou un lien de présentation ; un aperçu PDF est généré automatiquement et l'original reste téléchargeable.",

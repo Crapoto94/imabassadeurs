@@ -7,6 +7,7 @@ const { pageParams } = require('../../utils/pagination');
 const { logAction } = require('../../utils/audit');
 const { supprimerReferences } = require('../../utils/polymorphic');
 const themes = require('../themes/themes.service');
+const notifications = require('../../services/notifications');
 const { convertPresentationToPdf } = require('../../services/presentationConverter');
 
 const isModerator = (user) => user.roles.includes('ianimateur') || user.roles.includes('admin');
@@ -206,6 +207,9 @@ async function create(user, data, file) {
   }
   await logAction(user.id, 'resource_create', 'resource', row.id, { status, level: lvl, kind });
   await themes.setEntityThemes('resource', row.id, data.theme_ids);
+  const destinataires = await notifications.destinatairesCategorie('resources', user.id);
+  await notifications.notifier(destinataires, 'resources', 'resource', row.id,
+    `${user.display_name} a publié une nouvelle ressource : « ${title} ».`).catch(() => {});
   return row.id;
 }
 

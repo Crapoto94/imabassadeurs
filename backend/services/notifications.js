@@ -31,6 +31,21 @@ async function notifier(userIds, category, entityType, entityId, message) {
   }
 }
 
+// Destinataires d'une activité de module : tous les utilisateurs sauf l'auteur,
+// avec une préférence autre que « jamais » (défaut : résumé quotidien).
+async function destinatairesCategorie(category, excludeUserId) {
+  const rows = await db.all(
+    `SELECT u.id
+       FROM ${SCHEMA}.users u
+       LEFT JOIN ${SCHEMA}.notification_preferences p
+         ON p.user_id = u.id AND p.category = $1
+      WHERE ($2::int IS NULL OR u.id <> $2)
+        AND COALESCE(p.frequency, 'daily') <> 'never'`,
+    [category, excludeUserId || null]
+  );
+  return rows.map((r) => r.id);
+}
+
 async function getPreferences(userId) {
   const rows = await db.all(
     `SELECT category, frequency FROM ${SCHEMA}.notification_preferences WHERE user_id = $1`,
@@ -143,4 +158,7 @@ async function rateDigest(token, note) {
   return !!updated;
 }
 
-module.exports = { CATEGORIES, notifier, getPreferences, sendInstant, sendDigests, rateDigest, getFooter };
+module.exports = {
+  CATEGORIES, notifier, destinatairesCategorie, getPreferences,
+  sendInstant, sendDigests, rateDigest, getFooter,
+};

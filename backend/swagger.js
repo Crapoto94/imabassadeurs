@@ -5,7 +5,7 @@ const options = {
     openapi: '3.0.3',
     info: {
       title: 'IAmbassadeurs — Charte Éthique IA (Ville d’Ivry-sur-Seine)',
-      version: '1.3.0',
+      version: '1.3.1',
       description: "API de la plateforme collaborative d'élaboration de la Charte Éthique IA.",
     },
     servers: [{ url: '/', description: 'Serveur courant' }],
