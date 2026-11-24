@@ -10,6 +10,9 @@ import {
 } from '../components/stitch';
 import type { VoteSession } from '../types';
 
+// Date limite effective : la prolongation, si elle existe, prime sur la clôture prévisionnelle.
+const deadlineOf = (s: VoteSession) => s.extended_closes_at || s.closes_at;
+
 function VoteSessionCard({ session, onChanged }: { session: VoteSession; onChanged: () => void }) {
   const { canInteract } = useAuth();
   const { summary, refresh } = useGamification();
@@ -60,8 +63,12 @@ function VoteSessionCard({ session, onChanged }: { session: VoteSession; onChang
           <div className="flex items-center gap-1.5 font-headline text-label-sm px-3 py-1 rounded-full bg-surface-container text-on-surface-variant">
             <span className="material-symbols-outlined text-[16px]">schedule</span>
             {session.status === 'open'
-              ? session.closes_at
-                ? <span className="text-error">Clôture le {new Date(session.closes_at).toLocaleDateString('fr-FR')}</span>
+              ? deadlineOf(session)
+                ? session.extended_closes_at
+                  ? <span className="text-error" title={session.closes_at ? `Clôture prévisionnelle : ${new Date(session.closes_at).toLocaleDateString('fr-FR')}` : undefined}>
+                      Prolongé jusqu'au {new Date(session.extended_closes_at).toLocaleDateString('fr-FR')}
+                    </span>
+                  : <span className="text-error">Clôture le {new Date(session.closes_at!).toLocaleDateString('fr-FR')}</span>
                 : <span>Scrutin ouvert</span>
               : <span>Scrutin clôturé</span>}
           </div>
@@ -206,18 +213,24 @@ function CreateVoteModal({ open, onClose, onDone }: { open: boolean; onClose: ()
   const [allowWriteIn, setAllowWriteIn] = useState(false);
   const [options, setOptions] = useState('');
   const [closesAt, setClosesAt] = useState('');
+  const [extendedAt, setExtendedAt] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (open) { setQuestion(''); setContext(''); setMode('closed'); setAllowWriteIn(false); setOptions(''); setClosesAt(''); setError(''); } }, [open]);
+  useEffect(() => { if (open) { setQuestion(''); setContext(''); setMode('closed'); setAllowWriteIn(false); setOptions(''); setClosesAt(''); setExtendedAt(''); setError(''); } }, [open]);
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError('');
     try {
+      if (extendedAt && closesAt && new Date(extendedAt) <= new Date(closesAt)) {
+        setError('La date de prolongation doit être postérieure à la date de clôture prévisionnelle.');
+        return;
+      }
       await createVote({
         question, mode, allow_write_in: allowWriteIn,
         options: mode === 'closed' ? options.split('\n').map((s) => s.trim()).filter(Boolean) : [],
-        closes_at: closesAt || null,
+        closes_at: closesAt ? new Date(closesAt).toISOString() : null,
+        extended_closes_at: extendedAt ? new Date(extendedAt).toISOString() : null,
         context: context.trim() || null,
       });
       const after = await refresh();
@@ -249,6 +262,9 @@ function CreateVoteModal({ open, onClose, onDone }: { open: boolean; onClose: ()
             <StitchInput type="datetime-local" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />
           </StitchField>
         </div>
+        <StitchField label="Prolongation (facultatif)" hint="Date supplémentaire si le scrutin est prolongé ; doit être postérieure à la clôture prévisionnelle.">
+          <StitchInput type="datetime-local" min={closesAt || undefined} value={extendedAt} onChange={(e) => setExtendedAt(e.target.value)} />
+        </StitchField>
         {mode === 'closed' && (
           <>
             <StitchField label="Options (une par ligne, min. 2) *">
@@ -301,7 +317,7 @@ export default function Votes() {
   const shown = tab === 'open' ? open : closed;
   const totalVotes = items.reduce((acc, s) => acc + s.total_votes, 0);
   const nextClosing = useMemo(
-    () => open.filter((s) => s.closes_at).sort((a, b) => +new Date(a.closes_at!) - +new Date(b.closes_at!))[0],
+    () => open.filter((s) => deadlineOf(s)).sort((a, b) => +new Date(deadlineOf(a)!) - +new Date(deadlineOf(b)!))[0],
     [open]
   );
 
@@ -454,7 +470,7 @@ export default function Votes() {
                 </span>
                 <h3 className="font-headline text-headline-sm text-on-surface leading-snug">{nextClosing.question}</h3>
                 <p className="font-body text-body-sm text-on-surface-variant">
-                  Fin du scrutin le {new Date(nextClosing.closes_at!).toLocaleString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                  Fin du scrutin le {new Date(deadlineOf(nextClosing)!).toLocaleString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
                 </p>
                 <Link
                   to={`/votes/${nextClosing.id}`}

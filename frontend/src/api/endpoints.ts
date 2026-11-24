@@ -205,7 +205,7 @@ export const deleteWallComment = (id: number) =>
   api.delete<WallPost>(`/api/v1/wall/comments/${id}`).then((r) => r.data);
 
 // ── Pastilles « nouveau » du menu ──
-export type BadgeCounts = Partial<Record<'ressources' | 'experimentations' | 'risques' | 'votes' | 'mur' | 'admin', number>>;
+export type BadgeCounts = Partial<Record<'ressources' | 'experimentations' | 'risques' | 'votes' | 'mur' | 'admin' | 'votes_closing', number>>;
 export const getBadges = () => api.get<BadgeCounts>('/api/v1/badges').then((r) => r.data);
 export const markSectionSeen = (section: string) => api.post(`/api/v1/badges/${section}/seen`).then((r) => r.data);
 

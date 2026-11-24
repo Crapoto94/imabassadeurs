@@ -34,6 +34,16 @@ async function get(user) {
   if (user.roles.includes('admin')) {
     out.admin = (await db.get(`SELECT count(*)::int AS n FROM ${SCHEMA}.backlog_items WHERE status = 'demandee'`)).n;
   }
+  // IAnimateurs/Admins : scrutins ouverts qui se terminent dans moins de 24 h (alerte de clôture).
+  if (user.roles.includes('admin') || user.roles.includes('ianimateur')) {
+    out.votes_closing = (await db.get(
+      `SELECT count(*)::int AS n FROM ${SCHEMA}.vote_sessions
+        WHERE status = 'open'
+          AND COALESCE(extended_closes_at, closes_at) IS NOT NULL
+          AND COALESCE(extended_closes_at, closes_at) > now()
+          AND COALESCE(extended_closes_at, closes_at) <= now() + interval '1 day'`
+    )).n;
+  }
   return out;
 }
 

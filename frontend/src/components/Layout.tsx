@@ -71,6 +71,17 @@ export default function Layout() {
     return () => { document.body.style.overflow = ''; };
   }, [navOpen]);
 
+  // Alerte de clôture (IAnimateurs/Admins) : pastille sur « Votes » dans les 24 h précédant la fin.
+  const voteClosing = isIanimateur ? (counts.votes_closing ?? 0) : 0;
+  const badgeCounts: BadgeCounts = voteClosing > 0
+    ? { ...counts, votes: Math.max(counts.votes ?? 0, voteClosing) }
+    : counts;
+  const voteAlertTitle = voteClosing > 0
+    ? (voteClosing > 1
+      ? `${voteClosing} scrutins se terminent dans moins de 24 h`
+      : 'Un scrutin se termine dans moins de 24 h')
+    : undefined;
+
   const links = [
     { to: '/', label: 'Accueil', icon: 'home', end: true, show: true },
     { to: '/ressources', label: 'Base documentaire', icon: 'library_books', badge: 'ressources' as keyof BadgeCounts, show: true },
@@ -123,7 +134,14 @@ export default function Layout() {
           </div>
 
           <nav className="hidden xl:flex items-center gap-0.5 shrink-0" aria-label="Navigation principale">
-            {links.map((l) => <NavLink key={l.to} to={l.to} end={l.end} className={navCls}>{l.label}<NavBadge n={l.badge ? counts[l.badge] : 0} /></NavLink>)}
+            {links.map((l) => (
+              <NavLink
+                key={l.to} to={l.to} end={l.end} className={navCls}
+                title={l.to === '/votes' ? voteAlertTitle : undefined}
+              >
+                {l.label}<NavBadge n={l.badge ? badgeCounts[l.badge] : 0} />
+              </NavLink>
+            ))}
           </nav>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -227,10 +245,13 @@ export default function Layout() {
               className="xl:hidden absolute inset-x-0 top-16 max-h-[calc(100vh-4rem)] overflow-y-auto bg-surface-container-lowest border-t border-surface-container shadow-modal p-3 flex flex-col gap-1"
             >
               {links.map((l) => (
-                <NavLink key={l.to} to={l.to} end={l.end} className={mobileNavCls}>
+                <NavLink
+                  key={l.to} to={l.to} end={l.end} className={mobileNavCls}
+                  title={l.to === '/votes' ? voteAlertTitle : undefined}
+                >
                   <span className="material-symbols-outlined text-[20px]">{l.icon}</span>
                   {l.label}
-                  <NavBadge n={l.badge ? counts[l.badge] : 0} />
+                  <NavBadge n={l.badge ? badgeCounts[l.badge] : 0} />
                 </NavLink>
               ))}
               {install.available && (

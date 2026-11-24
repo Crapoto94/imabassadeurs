@@ -1,6 +1,21 @@
 const { db, SCHEMA } = require('../../pg_db');
 const { logAction } = require('../../utils/audit');
 
+// La prolongation, si elle existe, doit rester postérieure à la clôture prévisionnelle.
+function validerDates(closesAt, extendedAt) {
+  const close = closesAt ? new Date(closesAt).getTime() : null;
+  const ext = extendedAt ? new Date(extendedAt).getTime() : null;
+  if ((close !== null && Number.isNaN(close)) || (ext !== null && Number.isNaN(ext))) {
+    throw Object.assign(new Error('Date invalide'), { status: 400 });
+  }
+  if (close !== null && ext !== null && ext <= close) {
+    throw Object.assign(
+      new Error('La date de prolongation doit être postérieure à la date de clôture prévisionnelle'),
+      { status: 400 }
+    );
+  }
+}
+
 async function optionsWithCounts(sessionId) {
   return db.all(
     `SELECT o.id, o.label, o.proposed_by, o.justification, us.display_name AS proposed_by_name,
@@ -54,16 +69,20 @@ async function create(user, data) {
   if (!(user.roles.includes('ianimateur') || user.roles.includes('admin'))) {
     throw Object.assign(new Error('Réservé aux IAnimateurs'), { status: 403 });
   }
-  const { question, mode, allow_write_in, options, closes_at, context } = data;
+  const { question, mode, allow_write_in, options, closes_at, extended_closes_at, context } = data;
   if (!question) throw Object.assign(new Error('Question requise'), { status: 400 });
   if (!['closed', 'open'].includes(mode)) throw Object.assign(new Error('Mode invalide'), { status: 400 });
   if (mode === 'closed' && !(Array.isArray(options) && options.length >= 2)) {
     throw Object.assign(new Error('Au moins deux options sont requises en mode fermé'), { status: 400 });
   }
+  validerDates(closes_at, extended_closes_at);
   const s = await db.get(
-    `INSERT INTO ${SCHEMA}.vote_sessions (question, mode, allow_write_in, created_by, closes_at, context)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-    [question, mode, !!allow_write_in, user.id, closes_at || null, context && String(context).trim() ? String(context).trim() : null]
+    `INSERT INTO ${SCHEMA}.vote_sessions (question, mode, allow_write_in, created_by, closes_at, extended_closes_at, context)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+    [
+      question, mode, !!allow_write_in, user.id, closes_at || null, extended_closes_at || null,
+      context && String(context).trim() ? String(context).trim() : null,
+    ]
   );
   if (mode === 'closed') {
     for (const label of options) {
@@ -134,9 +153,13 @@ async function updateSession(user, id, data) {
   if (!estModerateur(user)) throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
   const s = await db.get(`SELECT id FROM ${SCHEMA}.vote_sessions WHERE id=$1`, [id]);
   if (!s) throw Object.assign(new Error('Session introuvable'), { status: 404 });
-  const { question, closes_at } = data;
+  const { question, closes_at, extended_closes_at } = data;
   if (!question) throw Object.assign(new Error('Question requise'), { status: 400 });
-  await db.run(`UPDATE ${SCHEMA}.vote_sessions SET question=$2, closes_at=$3 WHERE id=$1`, [id, question, closes_at || null]);
+  validerDates(closes_at, extended_closes_at);
+  await db.run(
+    `UPDATE ${SCHEMA}.vote_sessions SET question=$2, closes_at=$3, extended_closes_at=$4 WHERE id=$1`,
+    [id, question, closes_at || null, extended_closes_at || null]
+  );
   await logAction(user.id, 'vote_update', 'vote_session', id, null);
   return getSession(id, user);
 }

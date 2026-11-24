@@ -148,6 +148,7 @@ export interface VoteSession {
   context?: string | null;
   opens_at: string;
   closes_at: string | null;
+  extended_closes_at: string | null;
   total_votes: number;
   options: VoteOption[];
   my_option_id: number | null;

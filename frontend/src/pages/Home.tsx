@@ -165,7 +165,16 @@ function VoteCard({ vote, onVoted }: { vote: VoteSession; onVoted: () => void })
             </div>
             <div className="flex items-center gap-2 text-outline font-body text-body-sm text-[12px]">
               <span>Ouvert le {new Date(vote.opens_at).toLocaleDateString('fr-FR')}</span>
-              {vote.closes_at && (<><span>•</span><span className="text-error font-medium">Clôture le {new Date(vote.closes_at).toLocaleDateString('fr-FR')}</span></>)}
+              {(vote.extended_closes_at || vote.closes_at) && (
+                <>
+                  <span>•</span>
+                  <span className="text-error font-medium">
+                    {vote.extended_closes_at
+                      ? `Prolongé jusqu'au ${new Date(vote.extended_closes_at).toLocaleDateString('fr-FR')}`
+                      : `Clôture le ${new Date(vote.closes_at!).toLocaleDateString('fr-FR')}`}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>

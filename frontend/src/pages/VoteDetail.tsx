@@ -7,6 +7,17 @@ import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import type { VoteSession } from '../types';
 
+// ISO → valeur d'un champ datetime-local (heure locale).
+function toLocalInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso); const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+// Valeur d'un champ datetime-local → ISO (null si vide).
+const toIso = (value: string) => (value ? new Date(value).toISOString() : null);
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' });
+
 export default function VoteDetail() {
   const { id } = useParams();
   const sid = Number(id);
@@ -18,10 +29,17 @@ export default function VoteDetail() {
   const [newJustification, setNewJustification] = useState('');
   const [editing, setEditing] = useState(false);
   const [question, setQuestion] = useState('');
+  const [closesAt, setClosesAt] = useState('');
+  const [extendedAt, setExtendedAt] = useState('');
 
   async function load() {
-    try { const data = await getVote(sid); setS(data); setQuestion(data.question); }
-    catch (e) { setError(errMsg(e)); }
+    try {
+      const data = await getVote(sid);
+      setS(data);
+      setQuestion(data.question);
+      setClosesAt(toLocalInput(data.closes_at));
+      setExtendedAt(toLocalInput(data.extended_closes_at));
+    } catch (e) { setError(errMsg(e)); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [sid]);
 
@@ -32,8 +50,23 @@ export default function VoteDetail() {
   const canAddOption = s.status === 'open' && canInteract && (s.mode === 'open' || s.allow_write_in);
 
   async function saveQuestion() {
-    try { await updateVote(sid, { question, closes_at: s?.closes_at ?? null }); setEditing(false); load(); }
-    catch (e) { setError(errMsg(e)); }
+    if (extendedAt && closesAt && new Date(extendedAt) <= new Date(closesAt)) {
+      setError('La date de prolongation doit être postérieure à la date de clôture prévisionnelle.');
+      return;
+    }
+    setError('');
+    try {
+      await updateVote(sid, { question, closes_at: toIso(closesAt), extended_closes_at: toIso(extendedAt) });
+      setEditing(false);
+      load();
+    } catch (e) { setError(errMsg(e)); }
+  }
+  function cancelEdit() {
+    if (!s) return;
+    setEditing(false);
+    setQuestion(s.question);
+    setClosesAt(toLocalInput(s.closes_at));
+    setExtendedAt(toLocalInput(s.extended_closes_at));
   }
   async function removeSession() {
     if (!window.confirm('Supprimer définitivement cette session de vote ?')) return;
@@ -56,14 +89,30 @@ export default function VoteDetail() {
       {editing && (
         <Card className="mb-6 space-y-3 p-5">
           <Field label="Question"><Textarea rows={2} value={question} onChange={(e) => setQuestion(e.target.value)} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Date de clôture prévisionnelle">
+              <Input type="datetime-local" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />
+            </Field>
+            <Field label="Prolongation (facultatif)" hint="Date supplémentaire : devient la date limite effective du scrutin.">
+              <Input type="datetime-local" min={closesAt || undefined} value={extendedAt} onChange={(e) => setExtendedAt(e.target.value)} />
+            </Field>
+          </div>
           <div className="flex gap-2">
             <Button onClick={saveQuestion}><Save size={16} /> Enregistrer</Button>
-            <Button variant="secondary" onClick={() => { setEditing(false); setQuestion(s.question); }}><X size={16} /> Annuler</Button>
+            <Button variant="secondary" onClick={cancelEdit}><X size={16} /> Annuler</Button>
           </div>
         </Card>
       )}
 
       <Card className="mb-6 space-y-3 p-5">
+        {(s.closes_at || s.extended_closes_at) && (
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-600">
+            {s.closes_at && <span>Clôture prévisionnelle : {formatDate(s.closes_at)}</span>}
+            {s.extended_closes_at && (
+              <span className="font-medium text-amber-700">Prolongée jusqu’au {formatDate(s.extended_closes_at)}</span>
+            )}
+          </div>
+        )}
         {s.context && <p className="text-sm text-slate-600">{s.context}</p>}
         {s.options.length === 0 && <p className="text-sm text-slate-500">Aucune option proposée pour l’instant.</p>}
         {s.options.map((o) => {
