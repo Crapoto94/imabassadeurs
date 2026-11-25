@@ -127,9 +127,17 @@ async function update(user, id, data) {
     const imp = importance != null ? parseInt(importance, 10) : r.importance;
     const prob = probability != null ? parseInt(probability, 10) : r.probability;
     if (!(imp >= 1 && imp <= 4) || !(prob >= 1 && prob <= 4)) throw Object.assign(new Error('Valeurs entre 1 et 4'), { status: 400 });
+    const mitigation = data.mitigation && String(data.mitigation).trim() ? String(data.mitigation).trim() : null;
+    const affected_data = data.affected_data && String(data.affected_data).trim() ? String(data.affected_data).trim() : null;
+    const source_ref = data.source_ref && String(data.source_ref).trim() ? String(data.source_ref).trim() : null;
+    const related_experiment_id = parseInt(data.related_experiment_id, 10) || null;
     await db.run(
-      `UPDATE ${SCHEMA}.risks SET title=$2, description=$3, concerns_ivry=$4, importance=$5, probability=$6, edited_at=now() WHERE id=$1`,
-      [id, title, description, concerns_ivry !== false, imp, prob]
+      `UPDATE ${SCHEMA}.risks
+          SET title=$2, description=$3, concerns_ivry=$4, importance=$5, probability=$6,
+              mitigation=$7, affected_data=$8, source_ref=$9, related_experiment_id=$10, edited_at=now()
+        WHERE id=$1`,
+      [id, title, description, concerns_ivry !== false, imp, prob,
+        mitigation, affected_data, source_ref, related_experiment_id]
     );
     if (imp !== r.importance || prob !== r.probability) {
       await db.run(

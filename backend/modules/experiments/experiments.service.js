@@ -163,11 +163,23 @@ async function update(user, id, data) {
   if (status && !['planned', 'ongoing', 'completed', 'abandoned'].includes(status)) {
     throw Object.assign(new Error('Statut invalide'), { status: 400 });
   }
+  // Champs facultatifs (modifiables, y compris leur effacement).
+  const owner_service = data.owner_service && String(data.owner_service).trim() ? String(data.owner_service).trim() : null;
+  const ai_tool = data.ai_tool && String(data.ai_tool).trim() ? String(data.ai_tool).trim() : null;
+  const ai_hosting = ['france', 'ue', 'hors_ue', 'inconnu'].includes(data.ai_hosting) ? data.ai_hosting : null;
+  const personal_data = data.personal_data === true || data.personal_data === 'true' ? true
+    : (data.personal_data === false || data.personal_data === 'false' ? false : null);
+  const expected_benefits = data.expected_benefits && String(data.expected_benefits).trim() ? String(data.expected_benefits).trim() : null;
+  const feedback = data.feedback && String(data.feedback).trim() ? String(data.feedback).trim() : null;
+  const related_risk_id = parseInt(data.related_risk_id, 10) || null;
   await db.run(
     `UPDATE ${SCHEMA}.experiments
-        SET title=$2, description=$3, objective=$4, target_date=$5, status=COALESCE($6, status), edited_at=now()
+        SET title=$2, description=$3, objective=$4, target_date=$5, status=COALESCE($6, status),
+            owner_service=$7, ai_tool=$8, ai_hosting=$9, personal_data=$10,
+            expected_benefits=$11, feedback=$12, related_risk_id=$13, edited_at=now()
       WHERE id=$1`,
-    [id, title, description, objective, target_date || null, status || null]
+    [id, title, description, objective, target_date || null, status || null,
+      owner_service, ai_tool, ai_hosting, personal_data, expected_benefits, feedback, related_risk_id]
   );
   await logAction(user.id, 'experiment_update', 'experiment', id, null);
   if (data.theme_ids !== undefined) await themes.setEntityThemes('experiment', id, data.theme_ids);

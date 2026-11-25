@@ -4,7 +4,7 @@ import { ArrowLeft, History, Pencil, Trash2, Save } from 'lucide-react';
 import { Card, PageTitle, Spinner, Alert, Badge, Button, Select, Textarea, Input, Field } from '../components/ui';
 import AiPanel from '../components/AiPanel';
 import CommentThread from '../components/CommentThread';
-import { amendRisk, deleteRisk, getRisk, getThemes, synthRisk, updateRisk } from '../api/endpoints';
+import { amendRisk, deleteRisk, getExperiments, getRisk, getThemes, synthRisk, updateRisk } from '../api/endpoints';
 import { errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { EditedAt } from '../components/stitch';
@@ -23,7 +23,11 @@ export default function RiskDetail() {
   const [probability, setProbability] = useState(1);
   const [reason, setReason] = useState('');
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', concerns_ivry: true, importance: 1, probability: 1, reason: '', theme_ids: [] as number[] });
+  const [form, setForm] = useState({
+    title: '', description: '', concerns_ivry: true, importance: 1, probability: 1, reason: '', theme_ids: [] as number[],
+    mitigation: '', affected_data: '', source_ref: '', related_experiment_id: '',
+  });
+  const [experiments, setExperiments] = useState<any[]>([]);
 
   useEffect(() => { getThemes({ scope: 'risk' }).then(setAllThemes).catch(() => {}); }, []);
 
@@ -31,7 +35,14 @@ export default function RiskDetail() {
     try {
       const data = await getRisk(rid);
       setR(data); setImportance(data.importance); setProbability(data.probability);
-      setForm({ title: data.title, description: data.description, concerns_ivry: data.concerns_ivry, importance: data.importance, probability: data.probability, reason: '', theme_ids: (data.themes || []).map((t) => t.id) });
+      setForm({
+        title: data.title, description: data.description, concerns_ivry: data.concerns_ivry,
+        importance: data.importance, probability: data.probability, reason: '',
+        theme_ids: (data.themes || []).map((t) => t.id),
+        mitigation: data.mitigation || '', affected_data: data.affected_data || '',
+        source_ref: data.source_ref || '',
+        related_experiment_id: data.related_experiment_id ? String(data.related_experiment_id) : '',
+      });
     } catch (e) { setError(errMsg(e)); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [rid]);
@@ -42,12 +53,24 @@ export default function RiskDetail() {
   async function save() {
     try {
       const payload: any = { title: form.title, description: form.description, theme_ids: form.theme_ids };
-      if (isIanimateur) payload.reason = form.reason;
-      if (isIanimateur) { payload.concerns_ivry = form.concerns_ivry; payload.importance = form.importance; payload.probability = form.probability; }
+      if (isIanimateur) {
+        payload.reason = form.reason;
+        payload.concerns_ivry = form.concerns_ivry;
+        payload.importance = form.importance;
+        payload.probability = form.probability;
+        payload.mitigation = form.mitigation;
+        payload.affected_data = form.affected_data;
+        payload.source_ref = form.source_ref;
+        payload.related_experiment_id = form.related_experiment_id ? Number(form.related_experiment_id) : null;
+      }
       await updateRisk(rid, payload);
       setEditing(false); load();
     }
     catch (e) { setError(errMsg(e)); }
+  }
+  function startEdit() {
+    setEditing(true);
+    getExperiments().then(setExperiments).catch(() => {});
   }
   async function remove() {
     if (!window.confirm('Supprimer définitivement ce risque et sa discussion ?')) return;
@@ -63,15 +86,15 @@ export default function RiskDetail() {
           <div className="flex items-center gap-2">
             <Badge color="red">Importance {r.importance}/4</Badge>
             <Badge color="amber">Probabilité {r.probability}/4</Badge>
-            {(isIanimateur || r.proposed_by === user?.id) && !editing && <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} /> Éditer</Button>}
+            {(isIanimateur || r.proposed_by === user?.id) && !editing && <Button variant="secondary" onClick={startEdit}><Pencil size={16} /> Éditer</Button>}
             {isIanimateur && <Button variant="danger" onClick={remove}><Trash2 size={16} /> Supprimer</Button>}
           </div>
         } />
 
       {editing ? (
         <Card className="mb-6 space-y-3 p-5">
-          <Field label="Titre"><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
-          <Field label="Description"><Textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
+          <Field label="Titre *"><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
+          <Field label="Description *"><Textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
           {isIanimateur && (
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="Concerne Ivry">
@@ -79,14 +102,37 @@ export default function RiskDetail() {
                   <option value="true">Oui</option><option value="false">Non</option>
                 </Select>
               </Field>
-              <Field label="Importance"><Select value={form.importance} onChange={(e) => setForm({ ...form, importance: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}★</option>)}</Select></Field>
-              <Field label="Probabilité"><Select value={form.probability} onChange={(e) => setForm({ ...form, probability: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}★</option>)}</Select></Field>
+              <Field label="Importance *"><Select value={form.importance} onChange={(e) => setForm({ ...form, importance: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}★</option>)}</Select></Field>
+              <Field label="Probabilité *"><Select value={form.probability} onChange={(e) => setForm({ ...form, probability: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}★</option>)}</Select></Field>
             </div>
           )}
           {isIanimateur && <Field label="Motif (si importance/probabilité modifiées)"><Input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></Field>}
           <Field label="Thèmes">
             <ThemePicker themes={allThemes} value={form.theme_ids} onChange={(ids) => setForm({ ...form, theme_ids: ids })} />
           </Field>
+
+          {isIanimateur && (
+            <>
+              <Field label="Mesures d'atténuation / préconisations">
+                <Textarea rows={2} value={form.mitigation} onChange={(e) => setForm({ ...form, mitigation: e.target.value })} placeholder="Ex : validation humaine obligatoire avant tout envoi." />
+              </Field>
+              <Field label="Données / populations concernées">
+                <Textarea rows={2} value={form.affected_data} onChange={(e) => setForm({ ...form, affected_data: e.target.value })} placeholder="Ex : usagers du CCAS, données de santé." />
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Expérimentation liée">
+                  <Select value={form.related_experiment_id} onChange={(e) => setForm({ ...form, related_experiment_id: e.target.value })}>
+                    <option value="">Aucune</option>
+                    {experiments.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Sources / références">
+                  <Input value={form.source_ref} onChange={(e) => setForm({ ...form, source_ref: e.target.value })} placeholder="Ex : article de loi, rapport, lien." />
+                </Field>
+              </div>
+            </>
+          )}
+
           <div className="flex gap-2">
             <Button onClick={save}><Save size={16} /> Enregistrer</Button>
             <Button variant="secondary" onClick={() => setEditing(false)}>Annuler</Button>

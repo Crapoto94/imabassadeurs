@@ -4,7 +4,7 @@ import { ArrowLeft, Users, UserPlus, UserMinus, Pencil, Trash2, Save, FileText, 
 import { Card, PageTitle, Spinner, Alert, Badge, Button, Select, Input, Textarea, Field } from '../components/ui';
 import AiPanel from '../components/AiPanel';
 import CommentThread from '../components/CommentThread';
-import { deleteExperiment, getExperiment, getThemes, joinExperiment, synthExperiment, updateExperiment, updateExperimentStatus, addExperimentAttachment, deleteExperimentAttachment } from '../api/endpoints';
+import { deleteExperiment, getExperiment, getRisks, getThemes, joinExperiment, synthExperiment, updateExperiment, updateExperimentStatus, addExperimentAttachment, deleteExperimentAttachment } from '../api/endpoints';
 import { API_URL, errMsg } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { EditedAt } from '../components/stitch';
@@ -34,7 +34,11 @@ export default function ExperimentDetail() {
   const [editing, setEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fileError, setFileError] = useState('');
-  const [form, setForm] = useState({ title: '', description: '', objective: '', target_date: '', status: 'planned', theme_ids: [] as number[] });
+  const [form, setForm] = useState({
+    title: '', description: '', objective: '', target_date: '', status: 'planned', theme_ids: [] as number[],
+    owner_service: '', ai_tool: '', ai_hosting: '', personal_data: '', expected_benefits: '', feedback: '', related_risk_id: '',
+  });
+  const [risks, setRisks] = useState<any[]>([]);
 
   useEffect(() => { getThemes({ scope: 'experiment' }).then(setAllThemes).catch(() => {}); }, []);
 
@@ -42,7 +46,15 @@ export default function ExperimentDetail() {
     try {
       const data = await getExperiment(eid);
       setE(data);
-      setForm({ title: data.title, description: data.description, objective: data.objective, target_date: data.target_date || '', status: data.status, theme_ids: (data.themes || []).map((t) => t.id) });
+      setForm({
+        title: data.title, description: data.description, objective: data.objective,
+        target_date: data.target_date || '', status: data.status,
+        theme_ids: (data.themes || []).map((t) => t.id),
+        owner_service: data.owner_service || '', ai_tool: data.ai_tool || '',
+        ai_hosting: data.ai_hosting || '', personal_data: data.personal_data == null ? '' : String(data.personal_data),
+        expected_benefits: data.expected_benefits || '', feedback: data.feedback || '',
+        related_risk_id: data.related_risk_id ? String(data.related_risk_id) : '',
+      });
     } catch (err) { setError(errMsg(err)); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [eid]);
@@ -53,8 +65,19 @@ export default function ExperimentDetail() {
   const canEdit = isIanimateur || e.created_by === user?.id;
 
   async function save() {
-    try { await updateExperiment(eid, { ...form, target_date: form.target_date || null }); setEditing(false); load(); }
-    catch (err) { setError(errMsg(err)); }
+    try {
+      await updateExperiment(eid, {
+        ...form,
+        target_date: form.target_date || null,
+        personal_data: form.personal_data === '' ? null : form.personal_data === 'true',
+        related_risk_id: form.related_risk_id ? Number(form.related_risk_id) : null,
+      });
+      setEditing(false); load();
+    } catch (err) { setError(errMsg(err)); }
+  }
+  function startEdit() {
+    setEditing(true);
+    getRisks().then(setRisks).catch(() => {});
   }
   async function remove() {
     if (!window.confirm('Supprimer définitivement cette expérimentation et sa discussion ?')) return;
@@ -79,16 +102,16 @@ export default function ExperimentDetail() {
         action={
           <div className="flex items-center gap-2">
             <Badge color={STATUS[e.status].color}>{STATUS[e.status].label}</Badge>
-            {canEdit && !editing && <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} /> Éditer</Button>}
+            {canEdit && !editing && <Button variant="secondary" onClick={startEdit}><Pencil size={16} /> Éditer</Button>}
             {canEdit && <Button variant="danger" onClick={remove}><Trash2 size={16} /> Supprimer</Button>}
           </div>
         } />
 
       {editing ? (
         <Card className="mb-6 space-y-3 p-5">
-          <Field label="Titre"><Input value={form.title} onChange={(ev) => setForm({ ...form, title: ev.target.value })} /></Field>
-          <Field label="Quoi ?"><Textarea rows={3} value={form.description} onChange={(ev) => setForm({ ...form, description: ev.target.value })} /></Field>
-          <Field label="Pourquoi ?"><Textarea rows={3} value={form.objective} onChange={(ev) => setForm({ ...form, objective: ev.target.value })} /></Field>
+          <Field label="Titre *"><Input value={form.title} onChange={(ev) => setForm({ ...form, title: ev.target.value })} /></Field>
+          <Field label="Quoi ? *"><Textarea rows={3} value={form.description} onChange={(ev) => setForm({ ...form, description: ev.target.value })} /></Field>
+          <Field label="Pourquoi ? *"><Textarea rows={3} value={form.objective} onChange={(ev) => setForm({ ...form, objective: ev.target.value })} /></Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Pour quand ?"><Input type="date" value={form.target_date || ''} onChange={(ev) => setForm({ ...form, target_date: ev.target.value })} /></Field>
             <Field label="Statut">
@@ -100,6 +123,46 @@ export default function ExperimentDetail() {
           <Field label="Thèmes">
             <ThemePicker themes={allThemes} value={form.theme_ids} onChange={(ids) => setForm({ ...form, theme_ids: ids })} />
           </Field>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Service / direction pilote">
+              <Input value={form.owner_service} onChange={(ev) => setForm({ ...form, owner_service: ev.target.value })} placeholder="Ex : Direction éducation" />
+            </Field>
+            <Field label="Outil / fournisseur IA">
+              <Input value={form.ai_tool} onChange={(ev) => setForm({ ...form, ai_tool: ev.target.value })} placeholder="Ex : ChatGPT Enterprise, Mistral." />
+            </Field>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Hébergement de l'outil">
+              <Select value={form.ai_hosting} onChange={(ev) => setForm({ ...form, ai_hosting: ev.target.value })}>
+                <option value="">Non précisé</option>
+                <option value="france">France</option>
+                <option value="ue">Union européenne</option>
+                <option value="hors_ue">Hors UE</option>
+                <option value="inconnu">Inconnu</option>
+              </Select>
+            </Field>
+            <Field label="Données personnelles traitées ?">
+              <Select value={form.personal_data} onChange={(ev) => setForm({ ...form, personal_data: ev.target.value })}>
+                <option value="">Non renseigné</option>
+                <option value="true">Oui</option>
+                <option value="false">Non</option>
+              </Select>
+            </Field>
+            <Field label="Risque lié">
+              <Select value={form.related_risk_id} onChange={(ev) => setForm({ ...form, related_risk_id: ev.target.value })}>
+                <option value="">Aucun</option>
+                {risks.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
+              </Select>
+            </Field>
+          </div>
+          <Field label="Bénéfices / indicateurs attendus">
+            <Textarea rows={2} value={form.expected_benefits} onChange={(ev) => setForm({ ...form, expected_benefits: ev.target.value })} placeholder="Ex : -50 % de temps de tri, meilleure satisfaction des usagers." />
+          </Field>
+          <Field label="Bilan / retour d'expérience">
+            <Textarea rows={2} value={form.feedback} onChange={(ev) => setForm({ ...form, feedback: ev.target.value })} placeholder="Résultats observés, limites, conditions de réussite." />
+          </Field>
+
           <div className="flex gap-2">
             <Button onClick={save}><Save size={16} /> Enregistrer</Button>
             <Button variant="secondary" onClick={() => setEditing(false)}>Annuler</Button>
