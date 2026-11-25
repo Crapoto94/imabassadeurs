@@ -14,7 +14,7 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}_${safe}`);
   },
 });
-// Fichiers acceptés : PDF (5 Mo) et présentations PowerPoint/ODP (20 Mo).
+// Fichiers acceptés : PDF (5 Mo), présentations PowerPoint/ODP (20 Mo) et miniatures d'image (2 Mo).
 const RESOURCE_MIME_TYPES = new Set([
   'application/pdf',
   'application/vnd.ms-powerpoint',
@@ -22,20 +22,40 @@ const RESOURCE_MIME_TYPES = new Set([
   'application/vnd.oasis.opendocument.presentation',
 ]);
 const RESOURCE_EXT = /\.(pdf|pptx?|odp)$/i;
+const THUMBNAIL_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const THUMBNAIL_EXT = /\.(jpe?g|png|webp)$/i;
+const refus = (message) => Object.assign(new Error(message), { status: 400 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 20 * 1024 * 1024 }, // limite haute ; le service applique 5 Mo aux PDF
+  limits: { fileSize: 20 * 1024 * 1024 }, // limite haute ; le service applique les limites par type
   fileFilter: (req, file, cb) => {
+    if (file.fieldname === 'thumbnail') {
+      if (THUMBNAIL_MIME_TYPES.has(file.mimetype) || THUMBNAIL_EXT.test(file.originalname)) cb(null, true);
+      else cb(refus('Miniature : formats acceptés JPG, PNG ou WebP'));
+      return;
+    }
     if (RESOURCE_MIME_TYPES.has(file.mimetype) || RESOURCE_EXT.test(file.originalname)) cb(null, true);
-    else cb(new Error('Formats acceptés : PDF, PowerPoint (.ppt/.pptx) ou présentation ODP'));
+    else cb(refus('Formats acceptés : PDF, PowerPoint (.ppt/.pptx) ou présentation ODP'));
   },
 });
 
 router.get('/', requireAuth, asyncHandler(ctrl.list));
 router.get('/:id', requireAuth, asyncHandler(ctrl.getOne));
-router.post('/', requireAuth, requireInteract, upload.single('file'), asyncHandler(ctrl.create));
-router.put('/:id', requireAuth, requireInteract, asyncHandler(ctrl.update));
+router.post(
+  '/',
+  requireAuth,
+  requireInteract,
+  upload.fields([{ name: 'file', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }]),
+  asyncHandler(ctrl.create)
+);
+router.put(
+  '/:id',
+  requireAuth,
+  requireInteract,
+  upload.fields([{ name: 'file', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }]),
+  asyncHandler(ctrl.update)
+);
 router.delete('/:id', requireAuth, requireInteract, asyncHandler(ctrl.remove));
 router.post('/:id/review', requireAuth, requireIanimateur, asyncHandler(ctrl.review));
 router.patch('/:id/mandatory', requireAuth, requireAdmin, asyncHandler(ctrl.setMandatory));

@@ -4,7 +4,7 @@ const { ApiError } = require('../../utils/errors');
 const list = async (req, res) => res.json(await service.list(req.user, req.query));
 const getOne = async (req, res) => res.json(await service.getById(parseInt(req.params.id, 10), req.user));
 const create = async (req, res) => {
-  const id = await service.create(req.user, req.body, req.file);
+  const id = await service.create(req.user, req.body, req.files?.file?.[0], req.files?.thumbnail?.[0]);
   res.status(201).json({ id });
 };
 const review = async (req, res) => res.json(await service.review(req.user, parseInt(req.params.id, 10), req.body.status, req.body.note));
@@ -26,7 +26,8 @@ const synthThread = async (req, res) => {
   }
 };
 
-const update = async (req, res) => res.json(await service.update(req.user, parseInt(req.params.id, 10), req.body));
+const update = async (req, res) =>
+  res.json(await service.update(req.user, parseInt(req.params.id, 10), req.body, req.files?.file?.[0], req.files?.thumbnail?.[0]));
 const setMandatory = async (req, res) => res.json(await service.setMandatory(req.user, parseInt(req.params.id, 10), req.body.mandatory));
 const remove = async (req, res) => res.json(await service.remove(req.user, parseInt(req.params.id, 10)));
 

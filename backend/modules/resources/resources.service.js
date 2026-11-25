@@ -12,13 +12,16 @@ const { convertPresentationToPdf } = require('../../services/presentationConvert
 
 const isModerator = (user) => user.roles.includes('ianimateur') || user.roles.includes('admin');
 const LEVELS = ['debutant', 'intermediaire', 'avance'];
-const KINDS = ['pdf', 'link', 'presentation'];
+const KINDS = ['pdf', 'link', 'presentation', 'video'];
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 const MAX_PDF_BYTES = 5 * 1024 * 1024;
 const MAX_PRESENTATION_BYTES = 20 * 1024 * 1024;
+const MAX_THUMBNAIL_BYTES = 2 * 1024 * 1024;
 const PDF_EXT = /\.pdf$/i;
 const PRESENTATION_EXT = /\.(pptx?|odp)$/i;
 const OFFICE_PRESENTATION_EXT = /\.(pptx?)$/i;
+const THUMBNAIL_EXT = /\.(jpe?g|png|webp)$/i;
+const THUMBNAIL_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 
 // Nettoie un fichier uploadé lorsque la validation échoue.
@@ -42,6 +45,16 @@ function validerFichier(kind, file) {
     if (file.size > MAX_PRESENTATION_BYTES) {
       throw Object.assign(new Error('La présentation ne doit pas dépasser 20 Mo'), { status: 400 });
     }
+  }
+}
+
+function validerMiniature(file) {
+  const mime = file.mimetype || '';
+  if (!THUMBNAIL_EXT.test(file.originalname || '') && !THUMBNAIL_MIME.has(mime)) {
+    throw Object.assign(new Error('La miniature doit être une image JPG, PNG ou WebP'), { status: 400 });
+  }
+  if (file.size > MAX_THUMBNAIL_BYTES) {
+    throw Object.assign(new Error('La miniature ne doit pas dépasser 2 Mo'), { status: 400 });
   }
 }
 
@@ -91,6 +104,8 @@ async function list(user, query) {
     where += ` AND r.kind = 'pdf'`;
   } else if (query.format === 'link') {
     where += ` AND r.kind = 'link' AND (r.content_type IS DISTINCT FROM 'presentation')`;
+  } else if (query.format === 'video') {
+    where += ` AND (r.kind = 'video' OR r.content_type = 'video')`;
   }
   params.push(limit, offset);
   let orderBy = 'r.created_at DESC';
@@ -137,36 +152,64 @@ async function getById(id, user) {
   return { ...r, my_rating: myRating?.stars || null, my_progress: myProgress?.progress_pct || 0, themes: themeMap[id] || [] };
 }
 
-async function create(user, data, file) {
+async function create(user, data, file, thumbnail) {
   const { title, description, kind, url, level } = data;
-  if (!title || !description) throw Object.assign(new Error('Titre et description requis'), { status: 400 });
-  if (!KINDS.includes(kind)) throw Object.assign(new Error('Type de ressource invalide'), { status: 400 });
-  if ((kind === 'pdf' || kind === 'presentation') && !file) {
+  const externe = kind === 'link' || kind === 'video';
+  const nettoyerUploads = () => {
     supprimerFichierUpload(file);
+    supprimerFichierUpload(thumbnail);
+  };
+
+  if (!title || !description) {
+    nettoyerUploads();
+    throw Object.assign(new Error('Titre et description requis'), { status: 400 });
+  }
+  if (!KINDS.includes(kind)) {
+    nettoyerUploads();
+    throw Object.assign(new Error('Type de ressource invalide'), { status: 400 });
+  }
+  if ((kind === 'pdf' || kind === 'presentation') && !file) {
+    nettoyerUploads();
     throw Object.assign(new Error(kind === 'pdf' ? 'Fichier PDF requis' : 'Fichier de présentation requis'), { status: 400 });
   }
-  if (kind === 'link' && !url) {
-    supprimerFichierUpload(file);
+  if (externe && !url) {
+    nettoyerUploads();
     throw Object.assign(new Error('URL requise'), { status: 400 });
   }
-  if (kind === 'link' && file) supprimerFichierUpload(file);
+  if (externe && file) supprimerFichierUpload(file);
 
-  if (kind !== 'link') {
+  if (kind === 'video' && thumbnail) {
+    try {
+      validerMiniature(thumbnail);
+    } catch (err) {
+      nettoyerUploads();
+      throw err;
+    }
+  } else if (kind !== 'video' && thumbnail) {
+    // Une miniature n'a de sens que pour une vidéo.
+    supprimerFichierUpload(thumbnail);
+    thumbnail = null;
+  }
+
+  if (kind === 'pdf' || kind === 'presentation') {
     try {
       validerFichier(kind, file);
     } catch (err) {
-      supprimerFichierUpload(file);
+      nettoyerUploads();
       throw err;
     }
   }
 
+  const fichier = (kind === 'pdf' || kind === 'presentation') ? file : null;
+  const thumbnail_path = kind === 'video' && thumbnail ? thumbnail.filename : null;
+
   // Aperçu PDF : conversion des présentations PowerPoint (les ODP restent téléchargeables).
   let preview_path = null;
-  if (kind === 'presentation' && OFFICE_PRESENTATION_EXT.test(file.originalname || '')) {
-    const previewName = `${path.parse(file.filename).name}.preview.pdf`;
+  if (kind === 'presentation' && OFFICE_PRESENTATION_EXT.test(fichier.originalname || '')) {
+    const previewName = `${path.parse(fichier.filename).name}.preview.pdf`;
     const previewFull = path.join(UPLOADS_DIR, previewName);
     try {
-      await convertPresentationToPdf(file.path, previewFull);
+      await convertPresentationToPdf(fichier.path, previewFull);
       preview_path = previewName;
     } catch (err) {
       console.warn('[Présentation] conversion PDF impossible :', err.message);
@@ -180,7 +223,7 @@ async function create(user, data, file) {
   const contentTypes = ['article', 'rapport', 'video', 'mooc', 'jurisprudence', 'presentation', 'autre'];
   const content_type = contentTypes.includes(data.content_type)
     ? data.content_type
-    : (kind === 'presentation' ? 'presentation' : null);
+    : (kind === 'presentation' ? 'presentation' : (kind === 'video' ? 'video' : null));
   const reading_effort = ['court', 'moyen', 'long'].includes(data.reading_effort) ? data.reading_effort : null;
   const related_type = ['experiment', 'risk'].includes(data.related_type) ? data.related_type : null;
   const related_id = related_type && parseInt(data.related_id, 10) ? parseInt(data.related_id, 10) : null;
@@ -193,15 +236,15 @@ async function create(user, data, file) {
       `INSERT INTO ${SCHEMA}.resources
          (title, description, kind, file_path, url, proposed_by, status, level,
           source, published_at, content_type, reading_effort, related_type, related_id,
-          original_name, mime_type, size_bytes, preview_path)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
-      [title, description, kind, file ? file.filename : null, kind === 'link' ? url : null, user.id, status, lvl,
+          original_name, mime_type, size_bytes, preview_path, thumbnail_path)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id`,
+      [title, description, kind, fichier ? fichier.filename : null, externe ? url : null, user.id, status, lvl,
         source, published_at, content_type, reading_effort, related_type, related_id,
-        file ? String(file.originalname || '').slice(0, 300) || null : null,
-        file ? file.mimetype : null, file ? file.size : null, preview_path]
+        fichier ? String(fichier.originalname || '').slice(0, 300) || null : null,
+        fichier ? fichier.mimetype : null, fichier ? fichier.size : null, preview_path, thumbnail_path]
     );
   } catch (err) {
-    supprimerFichierUpload(file);
+    nettoyerUploads();
     if (preview_path) fs.promises.unlink(path.join(UPLOADS_DIR, preview_path)).catch(() => {});
     throw err;
   }
@@ -271,18 +314,102 @@ async function synthesizeThread(user, id) {
 
 // ───────────────────────── Modération (édition / suppression) ───────────────
 // Édite le titre/description/url : admin, IAnimateur ou auteur.
-async function update(user, id, data) {
-  const r = await db.get(`SELECT proposed_by, kind FROM ${SCHEMA}.resources WHERE id=$1`, [id]);
+async function update(user, id, data, file, thumbnail) {
+  const r = await db.get(
+    `SELECT proposed_by, kind, file_path, preview_path, thumbnail_path, level FROM ${SCHEMA}.resources WHERE id=$1`,
+    [id]
+  );
   if (!r) throw Object.assign(new Error('Ressource introuvable'), { status: 404 });
   const autorise = user.roles.includes('admin') || user.roles.includes('ianimateur') || r.proposed_by === user.id;
   if (!autorise) throw Object.assign(new Error('Droits insuffisants'), { status: 403 });
+
+  const nettoyer = () => {
+    supprimerFichierUpload(file);
+    supprimerFichierUpload(thumbnail);
+  };
   const { title, description, url, level } = data;
-  if (!title || !description) throw Object.assign(new Error('Titre et description requis'), { status: 400 });
-  const lvl = ['debutant', 'intermediaire', 'avance'].includes(level) ? level : null;
-  await db.run(
-    `UPDATE ${SCHEMA}.resources SET title=$2, description=$3, url=$4, level=COALESCE($5, level), edited_at=now() WHERE id=$1`,
-    [id, title, description, r.kind === 'link' ? (url || null) : null, lvl]
-  );
+  if (!title || !description) {
+    nettoyer();
+    throw Object.assign(new Error('Titre et description requis'), { status: 400 });
+  }
+  const lvl = LEVELS.includes(level) ? level : r.level;
+
+  // Champs facultatifs (modifiables, y compris leur effacement).
+  const contentTypes = ['article', 'rapport', 'video', 'mooc', 'jurisprudence', 'presentation', 'autre'];
+  const content_type = contentTypes.includes(data.content_type) ? data.content_type : null;
+  const reading_effort = ['court', 'moyen', 'long'].includes(data.reading_effort) ? data.reading_effort : null;
+  const related_type = ['experiment', 'risk'].includes(data.related_type) ? data.related_type : null;
+  const related_id = related_type && parseInt(data.related_id, 10) ? parseInt(data.related_id, 10) : null;
+  const source = data.source && String(data.source).trim() ? String(data.source).trim() : null;
+  const published_at = data.published_at ? String(data.published_at) : null;
+  const nextUrl = (r.kind === 'link' || r.kind === 'video') ? (url || null) : null;
+
+  // Remplacement éventuel du fichier (PDF/présentation) ou de la miniature (vidéo).
+  let filePath = r.file_path;
+  let previewPath = r.preview_path;
+  let thumbnailPath = r.thumbnail_path;
+  const aSupprimer = [];
+  if (file) {
+    if (r.kind !== 'pdf' && r.kind !== 'presentation') {
+      supprimerFichierUpload(file);
+      throw Object.assign(new Error('Un fichier ne peut pas être joint à ce type de ressource'), { status: 400 });
+    }
+    try {
+      validerFichier(r.kind, file);
+    } catch (err) {
+      supprimerFichierUpload(file);
+      throw err;
+    }
+    let newPreview = null;
+    if (r.kind === 'presentation' && OFFICE_PRESENTATION_EXT.test(file.originalname || '')) {
+      const previewName = `${path.parse(file.filename).name}.preview.pdf`;
+      const previewFull = path.join(UPLOADS_DIR, previewName);
+      try {
+        await convertPresentationToPdf(file.path, previewFull);
+        newPreview = previewName;
+      } catch (err) {
+        console.warn('[Présentation] conversion PDF impossible :', err.message);
+        fs.promises.unlink(previewFull).catch(() => {});
+      }
+    }
+    if (r.file_path) aSupprimer.push(r.file_path);
+    if (r.preview_path) aSupprimer.push(r.preview_path);
+    filePath = file.filename;
+    previewPath = newPreview;
+  }
+  if (thumbnail) {
+    if (r.kind !== 'video') {
+      supprimerFichierUpload(thumbnail);
+      throw Object.assign(new Error('Une miniature ne peut être jointe qu’à une vidéo'), { status: 400 });
+    }
+    try {
+      validerMiniature(thumbnail);
+    } catch (err) {
+      supprimerFichierUpload(thumbnail);
+      throw err;
+    }
+    if (r.thumbnail_path) aSupprimer.push(r.thumbnail_path);
+    thumbnailPath = thumbnail.filename;
+  }
+
+  try {
+    await db.run(
+      `UPDATE ${SCHEMA}.resources
+          SET title=$2, description=$3, url=$4, level=$5, source=$6, published_at=$7,
+              content_type=$8, reading_effort=$9, related_type=$10, related_id=$11,
+              file_path=$12, preview_path=$13, thumbnail_path=$14, edited_at=now()
+        WHERE id=$1`,
+      [id, title, description, nextUrl, lvl, source, published_at,
+        content_type, reading_effort, related_type, related_id,
+        filePath, previewPath, thumbnailPath]
+    );
+  } catch (err) {
+    nettoyer();
+    throw err;
+  }
+  for (const stored of aSupprimer) {
+    fs.promises.unlink(path.join(UPLOADS_DIR, stored)).catch(() => {});
+  }
   await logAction(user.id, 'resource_update', 'resource', id, null);
   if (data.theme_ids !== undefined) await themes.setEntityThemes('resource', id, data.theme_ids);
   return getById(id, user);
@@ -303,11 +430,11 @@ async function setMandatory(user, id, mandatory) {
 
 async function remove(user, id) {
   if (!isModerator(user)) throw Object.assign(new Error('Réservé aux administrateurs/IAnimateurs'), { status: 403 });
-  const r = await db.get(`SELECT file_path, preview_path FROM ${SCHEMA}.resources WHERE id=$1`, [id]);
+  const r = await db.get(`SELECT file_path, preview_path, thumbnail_path FROM ${SCHEMA}.resources WHERE id=$1`, [id]);
   if (!r) throw Object.assign(new Error('Ressource introuvable'), { status: 404 });
   await supprimerReferences('resource', id);
   await db.run(`DELETE FROM ${SCHEMA}.resources WHERE id=$1`, [id]);
-  for (const stored of [r.file_path, r.preview_path]) {
+  for (const stored of [r.file_path, r.preview_path, r.thumbnail_path]) {
     if (stored) fs.promises.unlink(path.join(UPLOADS_DIR, stored)).catch(() => {});
   }
   await logAction(user.id, 'resource_delete', 'resource', id, null);

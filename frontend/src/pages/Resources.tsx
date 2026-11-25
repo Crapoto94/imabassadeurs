@@ -13,14 +13,24 @@ import {
 import { ThemePicker } from '../components/Themes';
 import type { Resource, Theme } from '../types';
 
+// Bulle d'aide native : survol de l'icône (ou du libellé parent) pour afficher l'explication.
+function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="material-symbols-outlined cursor-help text-[15px] text-outline" title={text} aria-label={text}>
+      info
+    </span>
+  );
+}
+
 function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean; onClose: () => void; onDone: () => void; themes: Theme[] }) {
   const { show, Toast } = useToast();
   const { summary, refresh } = useGamification();
-  const [kind, setKind] = useState<'pdf' | 'link' | 'presentation'>('link');
+  const [kind, setKind] = useState<'pdf' | 'link' | 'presentation' | 'video'>('link');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [url, setUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [thumbnail, setThumbnail] = useState<File | null>(null);
   const [level, setLevel] = useState<string>('debutant');
   const [themeIds, setThemeIds] = useState<number[]>([]);
   const [source, setSource] = useState('');
@@ -35,7 +45,7 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
 
   useEffect(() => {
     if (open) {
-      setTitle(''); setDescription(''); setUrl(''); setFile(null); setError(''); setKind('link'); setLevel('debutant'); setThemeIds([]);
+      setTitle(''); setDescription(''); setUrl(''); setFile(null); setThumbnail(null); setError(''); setKind('link'); setLevel('debutant'); setThemeIds([]);
       setSource(''); setPublishedAt(''); setContentType(''); setReadingEffort(''); setRelatedValue('');
       getExperiments().then(setExperiments).catch(() => {});
       getRisks().then(setRisks).catch(() => {});
@@ -51,8 +61,9 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
       form.append('kind', kind);
       form.append('level', level);
       form.append('theme_ids', JSON.stringify(themeIds));
-      if (kind === 'link') form.append('url', url);
-      if (kind !== 'link' && file) form.append('file', file);
+      if (kind === 'link' || kind === 'video') form.append('url', url);
+      if ((kind === 'pdf' || kind === 'presentation') && file) form.append('file', file);
+      if (kind === 'video' && thumbnail) form.append('thumbnail', thumbnail);
       if (source.trim()) form.append('source', source.trim());
       if (publishedAt) form.append('published_at', publishedAt);
       if (contentType && kind !== 'presentation') form.append('content_type', contentType);
@@ -81,19 +92,31 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
         <StitchField label="Titre de la ressource *">
           <StitchInput value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Ex: Rapport sur la gouvernance éthique des algorithmes municipaux" />
         </StitchField>
-        <StitchField label="Type de source">
+        <StitchField label="Type de ressource">
           <div className="flex flex-wrap items-center gap-4 pt-1">
             <label className="flex items-center gap-1.5 font-body text-body-sm text-on-surface cursor-pointer">
-              <input type="radio" name="kind" className="accent-secondary" checked={kind === 'pdf'} onChange={() => { setKind('pdf'); setFile(null); setUrl(''); }} />
+              <input type="radio" name="kind" className="accent-secondary" checked={kind === 'pdf'} onChange={() => { setKind('pdf'); setFile(null); setThumbnail(null); setUrl(''); }} />
               <span>Fichier PDF</span>
             </label>
             <label className="flex items-center gap-1.5 font-body text-body-sm text-on-surface cursor-pointer">
-              <input type="radio" name="kind" className="accent-secondary" checked={kind === 'presentation'} onChange={() => { setKind('presentation'); setFile(null); setUrl(''); }} />
+              <input type="radio" name="kind" className="accent-secondary" checked={kind === 'presentation'} onChange={() => { setKind('presentation'); setFile(null); setThumbnail(null); setUrl(''); }} />
               <span>Présentation PowerPoint</span>
             </label>
-            <label className="flex items-center gap-1.5 font-body text-body-sm text-on-surface cursor-pointer">
-              <input type="radio" name="kind" className="accent-secondary" checked={kind === 'link'} onChange={() => { setKind('link'); setFile(null); }} />
-              <span>Lien URL externe</span>
+            <label
+              className="flex items-center gap-1.5 font-body text-body-sm text-on-surface cursor-pointer"
+              title="Lecture intégrée dans l'application lorsque la plateforme le permet (YouTube, Vimeo…). Les autres pages s'ouvrent sur leur site."
+            >
+              <input type="radio" name="kind" className="accent-secondary" checked={kind === 'link'} onChange={() => { setKind('link'); setFile(null); setThumbnail(null); }} />
+              <span>Page web ou lien YouTube/Vimeo</span>
+              <InfoTip text="Lecture intégrée dans l'application lorsque la plateforme le permet (YouTube, Vimeo…). Les autres pages s'ouvrent sur leur site." />
+            </label>
+            <label
+              className="flex items-center gap-1.5 font-body text-body-sm text-on-surface cursor-pointer"
+              title="La vidéo s'ouvre sur son site d'origine (SharePoint, Stream…) dans un nouvel onglet. Ajoutez une miniature pour la carte."
+            >
+              <input type="radio" name="kind" className="accent-secondary" checked={kind === 'video'} onChange={() => { setKind('video'); setFile(null); }} />
+              <span>Vidéo SharePoint / Stream</span>
+              <InfoTip text="La vidéo s'ouvre sur son site d'origine (SharePoint, Stream…) dans un nouvel onglet. Ajoutez une miniature pour la carte." />
             </label>
           </div>
         </StitchField>
@@ -130,8 +153,34 @@ function CreateResourceModal({ open, onClose, onDone, themes }: { open: boolean;
               />
             </label>
           </StitchField>
+        ) : kind === 'video' ? (
+          <>
+            <StitchField
+              label="Adresse de la vidéo *"
+              hint="Lien SharePoint, Stream, YouTube… La vidéo s'ouvrira dans un nouvel onglet."
+            >
+              <StitchInput type="url" value={url} onChange={(e) => setUrl(e.target.value)} required placeholder="https://…" />
+            </StitchField>
+            <StitchField
+              label="Miniature de la vidéo (JPG, PNG ou WebP — 2 Mo max)"
+              hint="Capture d'écran affichée sur la carte. Facultative : un visuel générique est utilisé sinon."
+            >
+              <label className="bg-surface-container-low hover:bg-surface-container rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all">
+                <span className="material-symbols-outlined text-[36px] text-secondary mb-1">image</span>
+                <span className="font-headline text-label-md text-primary font-bold">
+                  {thumbnail ? thumbnail.name : 'Cliquez pour choisir une miniature'}
+                </span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                  className="hidden"
+                  onChange={(e) => setThumbnail(e.target.files?.[0] || null)}
+                />
+              </label>
+            </StitchField>
+          </>
         ) : (
-          <StitchField label="Adresse URL du document *">
+          <StitchField label="Adresse du contenu en ligne *">
             <StitchInput type="url" value={url} onChange={(e) => setUrl(e.target.value)} required placeholder="https://…" />
           </StitchField>
         )}
@@ -373,6 +422,7 @@ export default function Resources() {
                     <option value="">Tous les formats</option>
                     <option value="pdf">Documents PDF</option>
                     <option value="presentation">Présentations</option>
+                    <option value="video">Vidéos</option>
                     <option value="link">Liens externes</option>
                   </StitchSelect>
                 </label>

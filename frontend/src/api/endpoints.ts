@@ -144,7 +144,7 @@ export const testPrompt = (actionKey: string, variables: Record<string, unknown>
 export const getAiModels = () => api.get<any>('/api/v1/admin/ai-models').then((r) => r.data);
 
 // ── Modération (admin & modérateurs) ──
-export const updateResource = (id: number, data: { title: string; description: string; url?: string | null; level?: string | null; theme_ids?: number[] }) =>
+export const updateResource = (id: number, data: FormData) =>
   api.put<Resource>(`/api/v1/resources/${id}`, data).then((r) => r.data);
 export const deleteResource = (id: number) => api.delete(`/api/v1/resources/${id}`).then((r) => r.data);
 export const updateComment = (id: number, body: string) => api.put(`/api/v1/comments/${id}`, { body }).then((r) => r.data);

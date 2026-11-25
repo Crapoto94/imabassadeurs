@@ -8,6 +8,7 @@ import CommentThread from './CommentThread';
 import PdfThumb from './PdfThumb';
 import StarRating from './StarRating';
 import VideoEmbed, { detectVideo } from './VideoEmbed';
+import VideoThumb from './VideoThumb';
 import { Avatar, LevelBadge, MandatoryBadge, timeAgo, useToast } from './stitch';
 import type { Resource } from '../types';
 
@@ -128,9 +129,11 @@ export default function ResourceCard({ res, onChanged }: { res: Resource; onChan
     onChanged();
   }
 
-  const isVideo = res.kind === 'link' && !!res.url && !!detectVideo(res.url);
+  const isVideoLink = res.kind === 'link' && !!res.url && !!detectVideo(res.url);
+  const isVideo = res.kind === 'video' || isVideoLink;
   const isPresentation = res.kind === 'presentation' || res.content_type === 'presentation';
   const thumbPath = res.kind === 'pdf' ? res.file_path : res.preview_path;
+  const videoPoster = res.kind === 'video' && res.thumbnail_path ? `${API_URL}/uploads/${res.thumbnail_path}` : null;
 
   return (
     <article className="bg-surface-container-lowest rounded-2xl p-3.5 shadow-card hover:shadow-card-hover transition-shadow flex flex-col gap-2.5">
@@ -185,7 +188,13 @@ export default function ResourceCard({ res, onChanged }: { res: Resource; onChan
             </a>
           )}
 
-          {isVideo && res.url && (
+          {res.kind === 'video' && (
+            <div className="w-full sm:w-[70%]">
+              <VideoThumb poster={videoPoster} href={res.url} />
+            </div>
+          )}
+
+          {isVideoLink && res.url && (
             <div className="w-full sm:w-[70%]">
               <VideoEmbed url={res.url} />
             </div>
